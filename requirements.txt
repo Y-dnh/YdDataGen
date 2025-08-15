@@ -1,0 +1,10 @@
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Configuration and Data Handling
+requests>=2.31.0
+
+# Progress Bars and Utilities
+tqdm>=4.65.0
+PyYAML>=6.0
+
