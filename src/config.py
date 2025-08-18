@@ -43,7 +43,24 @@ class Config:
         # Global settings
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.inference = 640
-        #Todo
+        self.half_precision = False
+
+        # Logging settings
+        self.log_level = "INFO"
+        self.log_file = "ytdatagen.log"
+        self.console_output = True
+        self.file_output = True
+        self.max_log_size = 10 * 1024 * 1024  # 10MB
+        self.backup_count = 5
+
+        # Download settings
+        self.video_quality = 640
+        self.download_quality = (f"bestvideo[width={self.video_quality}]/"
+                                 f"bestvideo[height={self.video_quality}]/"
+                                 f"bestvideo[height<={self.video_quality}]/"
+                                 f"bestvideo[width<={self.video_quality}]/"
+                                 f"best")
+        self.download_timeout = 300
 
         # Tracking settings
         # Set before downloading models if you want to create tracker with custom parameters
@@ -65,7 +82,13 @@ class Config:
 
         #TODO Yolo settings
 
-        #TODO Classes
+        # Custom classes mapping
+        self.custom_classes = {
+            0: "person",
+            1: "pet",
+            2: "car"
+        }
+
 
         #TODO SAM
 
@@ -73,7 +96,6 @@ class Config:
 
         #TODO Static cars
 
-        #TODO Logger
 
 
 # Global configuration instance

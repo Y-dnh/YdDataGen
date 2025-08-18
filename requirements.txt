@@ -1,6 +1,3 @@
-torch>=2.0.0
-torchvision>=0.15.0
-
 # Configuration and Data Handling
 requests>=2.31.0
 
@@ -8,3 +5,11 @@ requests>=2.31.0
 tqdm>=4.65.0
 PyYAML>=6.0
 
+# Video Processing and Download
+yt-dlp>=2023.7.6
+
+# Deep Learning and Computer Vision
+ultralytics>=8.3.0
+opencv-python>=4.8.0
+torch>=2.0.0
+torchvision>=0.15.0
