@@ -324,92 +324,42 @@ def get_file_size_mb(file_path: Path) -> float:
         return 0.0
 
 
-def get_yolo_model_path(model_name: str) -> str:
+def get_model_path(model_name: str, model_type: str = "yolo") -> str:
     """
-    Resolve YOLO model path with intelligent searching and fallback handling.
+    Resolve model path with intelligent searching and fallback handling.
 
-    Searches for YOLO model files in the configured models directory,
+    Searches for model files in the configured models directory,
     handling various naming conventions and providing helpful feedback
-    when models are not found.
+    when models are not found. Supports both YOLO and SAM models.
 
     Args:
-        model_name (str): YOLO model name or path (with or without .pt extension)
+        model_name (str): Model name or path (with or without .pt extension)
+        model_type (str): Type of model - "yolo" or "sam" (default: "yolo")
 
     Returns:
-        str: Resolved absolute path to YOLO model file
+        str: Resolved absolute path to model file
 
     Search Strategy:
     1. If absolute path provided and exists, return as-is
     2. Clean model name (ensure .pt extension)
-    3. Search in models/yolo_det directory
+    3. Search in appropriate models subdirectory based on model_type
     4. Return expected path with helpful logging if not found
 
-    Example Model Names:
-    - "yolov8n" -> searches for "yolov8n.pt"
-    - "yolov8n.pt" -> searches for "yolov8n.pt"
-    - "/absolute/path/model.pt" -> validates and returns if exists
+    Supported Model Types:
+    - "yolo": YOLO detection models (yolov8n, yolov8s, etc.)
+    - "sam": Segment Anything Models (sam_vit_b_01ec64, etc.)
+
+    Example Usage:
+    - get_model_path("yolov8n") -> searches for "yolov8n.pt" in models/yolo_det/
+    - get_model_path("sam_vit_b_01ec64", "sam") -> searches in models/sam/
+    - get_model_path("/absolute/path/model.pt") -> validates and returns if exists
 
     Directory Structure:
         models/
-        └── yolo_det/
-            ├── yolov8n.pt
-            ├── yolov8s.pt
-            └── custom_model.pt
-    """
-    # Handle absolute paths - return if valid
-    if Path(model_name).is_absolute() and Path(model_name).exists():
-        return model_name
-
-    # Normalize model name to ensure .pt extension
-    clean_name = model_name
-    if not clean_name.endswith('.pt'):
-        clean_name += '.pt'
-
-    # Search in configured YOLO models directory
-    yolo_dir = CONFIG.paths.models_dir / "yolo_det"
-    model_path = yolo_dir / clean_name
-
-    logger = logging.getLogger(__name__)
-
-    # Check if model exists in expected location
-    if model_path.exists():
-        logger.info(f"Found YOLO model: {model_path}")
-        return str(model_path)
-
-    # Model not found - provide helpful guidance
-    logger.warning(f"YOLO model not found: {model_path}")
-    logger.info(f"Please download {clean_name} to: {yolo_dir}")
-
-    # Return expected path anyway - calling code can handle the missing file
-    return str(model_path)
-
-
-def get_sam_model_path(model_name: str) -> str:
-    """
-    Resolve SAM (Segment Anything Model) path with intelligent searching.
-
-    Similar to YOLO model resolution but searches in the SAM-specific
-    directory. SAM models are typically larger and less frequently changed.
-
-    Args:
-        model_name (str): SAM model name or path (with or without .pt extension)
-
-    Returns:
-        str: Resolved absolute path to SAM model file
-
-    Search Strategy:
-    1. If absolute path provided and exists, return as-is
-    2. Clean model name (ensure .pt extension)
-    3. Search in models/sam directory
-    4. Return expected path with helpful logging if not found
-
-    Common SAM Models:
-    - "sam_vit_b_01ec64.pt" - Base ViT model
-    - "sam_vit_l_0b3195.pt" - Large ViT model
-    - "sam_vit_h_4b8939.pt" - Huge ViT model
-
-    Directory Structure:
-        models/
+        ├── yolo_det/
+        │   ├── yolov8n.pt
+        │   ├── yolov8s.pt
+        │   └── custom_model.pt
         └── sam/
             ├── sam_vit_b_01ec64.pt
             ├── sam_vit_l_0b3195.pt
@@ -428,23 +378,58 @@ def get_sam_model_path(model_name: str) -> str:
     if not clean_name.endswith('.pt'):
         clean_name += '.pt'
 
-    # Search in configured SAM models directory
-    sam_dir = CONFIG.paths.models_dir / "sam"
-    model_path = sam_dir / clean_name
+    # Define model type configurations
+    model_configs = {
+        "yolo": {
+            "subdir": "yolo_det",
+            "description": "YOLO detection model",
+            "examples": ["yolov8n.pt", "yolov8s.pt", "yolov8m.pt"]
+        },
+        "sam": {
+            "subdir": "sam",
+            "description": "SAM (Segment Anything Model)",
+            "examples": ["sam_vit_b_01ec64.pt", "sam_vit_l_0b3195.pt", "sam_vit_h_4b8939.pt"]
+        }
+    }
+
+    # Validate model type
+    if model_type not in model_configs:
+        raise ValueError(f"Unsupported model type: {model_type}. "
+                         f"Supported types: {list(model_configs.keys())}")
+
+    # Get configuration for specified model type
+    config = model_configs[model_type]
+    model_dir = CONFIG.paths.models_dir / config["subdir"]
+    model_path = model_dir / clean_name
 
     logger = logging.getLogger(__name__)
 
     # Check if model exists in expected location
     if model_path.exists():
-        logger.info(f"Found SAM model: {model_path}")
+        logger.info(f"Found {config['description']}: {model_path}")
         return str(model_path)
 
     # Model not found - provide helpful guidance
-    logger.warning(f"SAM model not found: {model_path}")
-    logger.info(f"Please download {clean_name} to: {sam_dir}")
+    logger.warning(f"{config['description']} not found: {model_path}")
+    logger.info(f"Please download {clean_name} to: {model_dir}")
+
+    if model_type == "sam":
+        logger.info("SAM models are large files that should be downloaded manually "
+                    "from the official Segment Anything repository")
 
     # Return expected path anyway - calling code can handle the missing file
     return str(model_path)
+
+
+# Convenience wrapper functions for backward compatibility
+def get_yolo_model_path(model_name: str) -> str:
+    """Convenience wrapper for YOLO model path resolution."""
+    return get_model_path(model_name, model_type="yolo")
+
+
+def get_sam_model_path(model_name: str) -> str:
+    """Convenience wrapper for SAM model path resolution."""
+    return get_model_path(model_name, model_type="sam")
 
 
 def load_json(file_path: Path) -> Any:

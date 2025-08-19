@@ -6,6 +6,7 @@ import torch
 from ultralytics import YOLO, SAM
 import logging
 from tqdm import tqdm
+import time
 
 from src.config import CONFIG
 from src.utils import get_yolo_model_path, get_sam_model_path
@@ -57,6 +58,7 @@ class InferenceEngine:
 
         # Cache segmentation parameters to avoid repeated CONFIG lookups
         self.max_points = CONFIG.max_points  # Maximum polygon vertices
+        # todo Douglas-Peucker approximation tolerance
         self.tolerance = CONFIG.simplify_tolerance  # Douglas-Peucker approximation tolerance
         self.min_area = CONFIG.min_area  # Minimum detection area in pixels
 
@@ -71,10 +73,12 @@ class InferenceEngine:
         # Pre-create morphological kernel for hole filling operations
         # Using elliptical kernel for more natural shape processing
         if CONFIG.fill_holes:
+            # todo ksize
             self._morphology_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
         # Load and initialize models
         self._load_models()
+
 
     def _load_models(self):
         """
@@ -140,6 +144,7 @@ class InferenceEngine:
                 CONFIG.sam_enabled = False
                 self.sam_model = None
 
+
     def process_video(self, video_id: str, video_info: Dict) -> Dict[str, Any]:
         """
         Optimized video processing pipeline with batch SAM and cached parameters.
@@ -178,8 +183,7 @@ class InferenceEngine:
         self.tracks = {}  # Clear previous tracking history
 
         # Resolve video frames directory path
-        video_path = Path(video_info["path"])
-        frames_dir = CONFIG.paths.data_dir / video_path.stem
+        frames_dir = Path(video_info['frames_dir'])
 
         # Validate frames directory exists
         if not frames_dir.exists():
@@ -195,17 +199,17 @@ class InferenceEngine:
         # Initialize comprehensive results structure
         results = {
             "video_id": video_id,
-            "annotations": [],  # Per-frame detection and segmentation results
+            "annotations": [],
             "statistics": {
                 "total_frames": len(frame_files),
                 "processed_frames": 0,
                 "total_detections": 0,
-                "unique_tracks": set(),  # Track unique object IDs across video
-                "people_count": 0,  # Total person detections
-                "pets_count": 0,  # Total pet detections
-                "cars_count": 0,  # Total car detections
-                "static_cars_count": 0,  # Cars that never moved significantly
-                "avg_confidence": 0.0  # Average detection confidence
+                "unique_tracks": {"person": set(), "car": set(), "pet": set()},
+                "people_count": 0,
+                "pets_count": 0,
+                "cars_count": 0,
+                "static_cars_count": 0,
+                "avg_confidence": 0.0
             }
         }
 
@@ -214,6 +218,7 @@ class InferenceEngine:
 
         # Process each frame with progress tracking
         with tqdm(frame_files, desc=f"Processing {video_id}", unit="frame") as pbar:
+            start_time = time.time()
             for frame_idx, frame_file in enumerate(pbar):
                 try:
                     # Run YOLO detection and tracking with cached parameters
@@ -251,10 +256,29 @@ class InferenceEngine:
                     # Log frame processing errors but continue with next frame
                     logger.warning(f"Error processing frame {frame_idx}: {e}")
                     continue
-
+            processing_time = time.time() - start_time
+            results["statistics"]["processing_time"] = processing_time
+        moving_cars_count = 0
+        static_cars_count = 0
         # Post-processing: Calculate static cars based on movement analysis
         if CONFIG.static_car_enabled:
-            self._calculate_static_cars(results)
+            for track_info in self.tracks.values():
+                if track_info.get('class_name') != 'car':
+                    continue
+
+                # Якщо прапорець стоїть - машина точно рухома.
+                if track_info['is_moving']:
+                    moving_cars_count += 1
+                else:
+                    # Якщо прапорець не стоїть, вмикаємо наш "фільтр від листя".
+                    duration = track_info['last_seen_frame'] - track_info['start_frame']
+                    if duration >= CONFIG.min_static_duration:
+                        static_cars_count += 1
+                    # Якщо тривалість менша - ігноруємо. Це і є захист від "листка".
+
+            # Записуємо фінальний результат
+            results["statistics"]["moving_cars_count"] = moving_cars_count
+            results["statistics"]["static_cars_count"] = static_cars_count
 
         # Finalize statistics calculations
         if results["statistics"]["total_detections"] > 0:
@@ -262,6 +286,7 @@ class InferenceEngine:
 
         logger.info(f"Completed {video_id}: {results['statistics']}")
         return results
+
 
     def _process_frame_results(self, yolo_result, frame_idx: int, frame_file: Path, stats: Dict) -> Dict:
         """
@@ -297,7 +322,8 @@ class InferenceEngine:
             for i, box in enumerate(boxes.data):
                 # Ensure box has all required fields
                 # Expected format: [x1, y1, x2, y2, track_id, confidence, class_id]
-                if len(box) < 7:
+                # Apply confidence filtering to reduce false positives
+                if len(box) < 7 or box[5] < CONFIG.min_confidence_for_tracking:
                     continue
 
                 # Extract detection parameters
@@ -306,12 +332,8 @@ class InferenceEngine:
                 conf = box[5]  # Detection confidence score
                 cls_id = int(box[6])  # Class identifier
 
-                # Apply confidence filtering to reduce false positives
-                if conf < CONFIG.min_confidence_for_tracking:
-                    continue
-
                 # Map class ID to human-readable name
-                class_name = self._get_class_name(cls_id)
+                class_name = CONFIG.custom_classes.get(cls_id, f'class_{cls_id}')
 
                 # Extract basic segmentation mask from YOLO if available
                 # YOLO models may include instance segmentation masks
@@ -337,20 +359,38 @@ class InferenceEngine:
 
                 # Update aggregate statistics
                 stats["total_detections"] += 1
-                stats["unique_tracks"].add(track_id)
+                stats["unique_tracks"][class_name.lower()].add(track_id)
 
-                # Count objects by category for summary statistics
-                if class_name.lower() == 'person':
+                # Оновлюємо, коли востаннє бачили трек (це дешева операція)
+                if track_id in self.tracks:
+                    self.tracks[track_id]['last_seen_frame'] = frame_idx
+
+                if class_name.lower() == 'car':
+                    stats["cars_count"] += 1
+
+                    is_new_track = track_id not in self.tracks
+
+                    # Визначаємо, чи потрібно перевіряти цей трек саме зараз
+                    should_check = False
+                    if not is_new_track:
+                        # Перевіряємо, тільки якщо він ще не позначений як рухомий
+                        if not self.tracks[track_id]['is_moving']:
+                            # Твоя проста і зрозуміла перевірка по інтервалу
+                            if frame_idx % CONFIG.static_check_interval == 0:
+                                should_check = True
+
+                    # Викликаємо "аналітика" тільки в потрібний момент
+                    if is_new_track or should_check:
+                        self._update_car_mobility(track_id, [x1, y1, x2, y2], frame_idx)
+
+                # Оновлюємо лічильники для інших класів
+                elif class_name.lower() == 'person':
                     stats["people_count"] += 1
                 elif class_name.lower() == 'pet':
                     stats["pets_count"] += 1
-                elif class_name.lower() == 'car':
-                    stats["cars_count"] += 1
-
-                # Update tracking history for temporal analysis and static detection
-                self._update_track_history(track_id, [x1, y1, x2, y2], frame_idx, conf, class_name)
 
         return frame_annotation
+
 
     def _apply_batch_sam_segmentation(self, frame_file: Path, frame_annotation: Dict) -> Dict:
         """
@@ -375,17 +415,6 @@ class InferenceEngine:
         - Better GPU utilization through batch processing
         - Consistent parameter usage across detections
         """
-        # Pre-filter detections that meet SAM confidence threshold
-        # This avoids processing low-confidence detections that likely won't benefit
-        sam_candidates = [
-            (i, det) for i, det in enumerate(frame_annotation["detections"])
-            if det["confidence"] >= CONFIG.sam_min_confidence_for_seg
-        ]
-
-        # Skip SAM processing if no candidates meet threshold
-        if not sam_candidates:
-            return frame_annotation
-
         try:
             # Read image once for all SAM operations (major I/O optimization)
             image = cv2.imread(str(frame_file))
@@ -397,16 +426,13 @@ class InferenceEngine:
             all_boxes = []  # Bounding box prompts for SAM
             detection_indices = []  # Corresponding detection indices
 
-            for det_idx, detection in sam_candidates:
+            for det_idx, detection in enumerate(frame_annotation["detections"]):
                 bbox = detection["bbox"]
                 x, y, w, h = bbox
                 # Convert from [x, y, width, height] to [x1, y1, x2, y2] format expected by SAM
                 box_prompt = [x, y, x + w, y + h]
                 all_boxes.append(box_prompt)
                 detection_indices.append(det_idx)
-
-            if not all_boxes:
-                return frame_annotation
 
             try:
                 # Batch SAM prediction for all boxes simultaneously
@@ -443,15 +469,15 @@ class InferenceEngine:
             except Exception as e:
                 logger.debug(f"Batch SAM failed: {e}")
                 # Fallback to individual processing if batch fails
-                return self._fallback_individual_sam(image, frame_annotation, sam_candidates)
+                return self._fallback_individual_sam(image, frame_annotation)
 
         except Exception as e:
             logger.warning(f"SAM segmentation failed for {frame_file.name}: {e}")
 
         return frame_annotation
 
-    def _fallback_individual_sam(self, image: np.ndarray, frame_annotation: Dict,
-                                 sam_candidates: List[Tuple[int, Dict]]) -> Dict:
+
+    def _fallback_individual_sam(self, image: np.ndarray, frame_annotation: Dict) -> Dict:
         """
         Fallback method for individual SAM processing when batch processing fails.
 
@@ -461,7 +487,6 @@ class InferenceEngine:
         Args:
             image (np.ndarray): Loaded frame image
             frame_annotation (Dict): Frame annotation to update
-            sam_candidates (List[Tuple[int, Dict]]): List of (index, detection) pairs
 
         Returns:
             Dict: Updated frame annotation with individual SAM results
@@ -472,7 +497,7 @@ class InferenceEngine:
         logger.debug("Using individual SAM processing as fallback")
 
         # Process each detection individually
-        for det_idx, detection in sam_candidates:
+        for det_idx, detection in enumerate(frame_annotation["detections"]):
             bbox = detection["bbox"]
             x, y, w, h = bbox
             # Convert to SAM expected format
@@ -504,6 +529,7 @@ class InferenceEngine:
                 continue
 
         return frame_annotation
+
 
     def _approximate_segmentation(self, mask: np.ndarray) -> Optional[List[List[float]]]:
         """
@@ -587,6 +613,7 @@ class InferenceEngine:
 
             # Apply smoothing only for moderately complex polygons
             # Avoid smoothing very simple or very complex shapes
+            # todo constants
             if CONFIG.smoothing and 8 <= len(polygon) <= 100:
                 polygon = self._smooth_polygon_optimized(polygon)
 
@@ -596,6 +623,7 @@ class InferenceEngine:
         except Exception as e:
             logger.warning(f"Segmentation approximation failed: {e}")
             return None
+
 
     def _reduce_points_optimized(self, polygon: List[float], max_points: int) -> List[float]:
         """
@@ -631,6 +659,7 @@ class InferenceEngine:
 
         # Convert back to flat coordinate list
         return [coord for point in reduced_points for coord in point]
+
 
     def _smooth_polygon_optimized(self, polygon: List[float]) -> List[float]:
         """
@@ -674,148 +703,37 @@ class InferenceEngine:
         # Convert back to flat coordinate list
         return [coord for point in smoothed for coord in point]
 
-    def _get_class_name(self, class_id: int) -> str:
-        """
-        Map numeric class ID to human-readable class name.
 
-        Args:
-            class_id (int): Numeric class identifier from model
-
-        Returns:
-            str: Human-readable class name or generic fallback
-        """
-        return CONFIG.custom_classes.get(class_id, f'class_{class_id}')
-
-    def _update_track_history(self, track_id: int, bbox: List[float], frame_idx: int,
-                              confidence: float, class_name: str):
-        """
-        Update object tracking history for temporal analysis.
-
-        Maintains a history of object positions, confidences, and metadata
-        for each tracked object. This enables static object detection and
-        movement analysis across video sequences.
-
-        Args:
-            track_id (int): Unique identifier for tracked object
-            bbox (List[float]): Bounding box coordinates [x1, y1, x2, y2]
-            frame_idx (int): Current frame number
-            confidence (float): Detection confidence score
-            class_name (str): Object class name
-
-        History Structure:
-            Each track maintains:
-            - history: List of frame records with position and metadata
-            - class_name: Object classification
-
-        Memory Management:
-            Keeps only recent history (150 frames) to prevent memory bloat
-            during long video processing.
-        """
-        # Initialize track record if first detection
-        if track_id not in self.tracks:
-            self.tracks[track_id] = {
-                'history': [],  # List of frame records
-                'class_name': class_name  # Object classification
-            }
-
-        # Calculate object center for movement analysis
+    def _update_car_mobility(self, track_id: int, bbox: List[float], frame_idx: int):
+        """Створює або перевіряє статус мобільності автомобіля."""
         center_x = (bbox[0] + bbox[2]) / 2
         center_y = (bbox[1] + bbox[3]) / 2
+        current_center = (center_x, center_y)
 
-        # Add current frame record to history
-        self.tracks[track_id]['history'].append({
-            'frame': frame_idx,  # Frame sequence number
-            'center': (center_x, center_y),  # Object center coordinates
-            'bbox': bbox,  # Full bounding box
-            'confidence': confidence  # Detection confidence
-        })
+        # Якщо це новий трек - створюємо для нього "паспорт"
+        if track_id not in self.tracks:
+            self.tracks[track_id] = {
+                'class_name': 'car',  # Ми вже знаємо, що це машина
+                'start_center': current_center,  # Якір. Встановлюється один раз.
+                'start_frame': frame_idx,
+                'is_moving': False,
+                'last_seen_frame': frame_idx
+            }
+            return
 
-        # Memory management: limit history length to prevent memory bloat
-        # Keep last 150 frames (~5 seconds at 30fps) for movement analysis
-        if len(self.tracks[track_id]['history']) > 150:
-            self.tracks[track_id]['history'] = self.tracks[track_id]['history'][-150:]
+        # Якщо ми тут, значить, настав час перевірки для існуючого треку.
+        track_info = self.tracks[track_id]
 
-    def _calculate_static_cars(self, results: Dict):
-        """
-        Optimized calculation of static cars based on movement analysis.
+        # Розраховуємо зміщення від початкової точки.
+        displacement = np.sqrt(
+            (current_center[0] - track_info['start_center'][0]) ** 2 +
+            (current_center[1] - track_info['start_center'][1]) ** 2
+        )
 
-        Analyzes tracked car objects to determine which ones never moved
-        significantly during the video sequence. A car is considered static
-        if it never moves more than the configured threshold distance.
+        # Якщо зміщення перевищило поріг - ставимо прапорець. Назавжди.
+        if displacement > CONFIG.movement_threshold:
+            track_info['is_moving'] = True
 
-        Args:
-            results (Dict): Video processing results to update with static car count
-
-        Algorithm:
-        1. Filter tracks to cars only
-        2. Ensure sufficient tracking duration
-        3. Filter history by confidence threshold
-        4. Analyze frame-to-frame movement
-        5. Mark as static if no significant movement detected
-
-        Static Detection Criteria:
-        - Object must be tracked for minimum duration
-        - All movements must be below threshold
-        - Only high-confidence detections considered
-        """
-        static_count = 0
-
-        # Analyze each tracked object
-        for track_id, track_info in self.tracks.items():
-            history = track_info['history']
-            class_name = track_info['class_name']
-
-            # Only analyze car objects for static detection
-            if class_name.lower() != 'car':
-                continue
-
-            # Require sufficient duration to consider object as potentially static
-            # Short tracks might be passing cars or false detections
-            if len(history) < CONFIG.min_static_duration:
-                continue
-
-            # Filter history by confidence threshold to avoid noise from low-quality detections
-            # Only analyze high-confidence detections for reliable movement analysis
-            high_conf_history = [
-                h for h in history
-                if h['confidence'] >= CONFIG.static_confidence_threshold
-            ]
-
-            # Ensure we still have sufficient data after confidence filtering
-            if len(high_conf_history) < CONFIG.min_static_duration:
-                continue
-
-            # Analyze movement throughout the tracking history
-            car_moved = False
-
-            # Compare consecutive high-confidence detections for movement
-            for i in range(1, len(high_conf_history)):
-                prev_center = high_conf_history[i - 1]['center']
-                curr_center = high_conf_history[i]['center']
-
-                # Calculate Euclidean distance between consecutive positions
-                movement = np.sqrt(
-                    (curr_center[0] - prev_center[0]) ** 2 +
-                    (curr_center[1] - prev_center[1]) ** 2
-                )
-
-                # If any movement exceeds threshold, car is not static
-                # This is a strict criterion - any significant movement disqualifies
-                if movement > CONFIG.movement_threshold:
-                    car_moved = True
-                    break
-
-            # Car is static only if it never moved significantly
-            if not car_moved:
-                static_count += 1
-                logger.debug(
-                    f"Static car detected: track_id={track_id}, "
-                    f"duration={len(high_conf_history)} frames - "
-                    f"never moved more than {CONFIG.movement_threshold}px"
-                )
-
-        # Update results with static car count
-        results["statistics"]["static_cars_count"] = static_count
 
     def clear_memory(self):
         """
