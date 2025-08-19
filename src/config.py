@@ -74,9 +74,9 @@ class Config:
         # Change parameters in tracker .yaml file if you want to run inference with custom parameters
         # Check https://docs.ultralytics.com/modes/track/#tracker-arguments for more details
         self.tracker_type = "botsort.yaml"  # or "bytetrack.yaml" or custom tracker name
-        self.track_high_thresh = 0.7
+        self.track_high_thresh = 0.5
         self.track_low_thresh = 0.1
-        self.new_track_thresh = 0.7
+        self.new_track_thresh = 0.5
         self.track_buffer = 30
         self.match_thresh = 0.8
         self.fuse_score = True
@@ -85,11 +85,11 @@ class Config:
         self.proximity_thresh = 0.5  # minimum IoU for valid match with ReID
         self.appearance_thresh = 0.8  # minimum appearance similarity for ReID
         self.with_reid = True
-        self.min_confidence_for_tracking = 0.7
+        self.min_confidence_for_tracking = 0.5
 
         # YOLO Detection settings
         self.yolo_model_path = "yolov8n.pt"
-        self.yolo_confidence = 0.7
+        self.yolo_confidence = 0.5
         self.yolo_iou = 0.5
         self.yolo_rect = True
         self.yolo_half = False
@@ -98,19 +98,17 @@ class Config:
         self.yolo_agnostic_nms = False
         self.yolo_augment = False
         self.stream_buffer = False
-        self.yolo_vid_stride = 1
 
         # SAM Segmentation settings
         self.sam_model_path = "sam2.1_t.pt"
         self.sam_enabled = True
-        self.sam_confidence = 0.4
-        self.sam_iou = 0.9
+        self.sam_confidence = 0.5
+        self.sam_iou = 0.5
         self.sam_retina_masks = True
         self.sam_half = False
-        self.sam_min_confidence_for_seg = 0.4  # Apply SAM only for detections above this
 
         # Segmentation polygon settings
-        self.max_points = 50
+        self.max_points = 20
         self.simplify_tolerance = 0.2
         self.min_area = 50.0
         self.smoothing = True
@@ -120,7 +118,7 @@ class Config:
         self.static_car_enabled = True
         self.movement_threshold = 100.0  # pixels - if any movement > this, car is not static
         self.min_static_duration = 300  # minimum frames to consider truly static
-        self.static_confidence_threshold = 0.3
+        self.static_check_interval  = 50
 
 
     def get_tracker_path(self) -> str:
@@ -159,7 +157,6 @@ class Config:
             "tracker": self.get_tracker_path(),
             "rect": self.yolo_rect,
             "stream_buffer": self.stream_buffer,
-            "vid_stride": self.yolo_vid_stride,
         }
 
         if self.yolo_classes is not None:

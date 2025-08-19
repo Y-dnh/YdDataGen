@@ -194,7 +194,7 @@ class VideoAnnotator:
 
         video_info = data["videos"][0]
         video_id = video_info.get("file_name", annotation_file.stem.replace("_annotations", ""))
-        video_path = CONFIG.paths.videos_dir / f"{video_id}.mp4"
+        video_path = next(CONFIG.paths.videos_dir.glob(f"{video_id}.*"), None)
 
         if not video_path.exists():
             logger.error(f"Video file not found for annotations: {video_path}")

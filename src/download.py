@@ -67,11 +67,8 @@ def download_single_video(url: str, ydl_opts: Dict) -> tuple[str, Dict]:
             info = ydl.extract_info(url, download=True)
             video_id = info.get('id', f"video_{hash(url) % 10000:04d}")
             video_metadata = {
-                'duration': info.get('duration'),
                 'ext': info.get('ext'),  # File extension (e.g., 'mp4', 'webm')
-                'resolution': info.get('resolution'),
                 'filesize': info.get('filesize'),
-                'fps': info.get('fps'),
                 'path': None
             }
 
@@ -112,8 +109,7 @@ def download_videos() -> Dict[str, Dict]:
 
     ydl_opts = {
         'format': CONFIG.download_quality,  # The video/audio quality. Pulled from our config.
-        'outtmpl': str(output_dir / '%(id)s.%(ext)s'),
-        # A template for the output filename. We use the video's ID and extension.
+        'outtmpl': str(output_dir / '%(id)s.%(ext)s'), # A template for the output filename. We use the video's ID and extension.
         'noplaylist': True,
         'quiet': True,
         'logger': TqdmLogger()
@@ -126,22 +122,3 @@ def download_videos() -> Dict[str, Dict]:
 
     logger.info(f"Downloaded {len(video_info_dict)} videos successfully")
     return video_info_dict
-
-
-def get_download_options() -> Dict:
-    """
-    Get the yt-dlp options dictionary for downloads.
-
-    Returns:
-        Dictionary of yt-dlp options
-    """
-    output_dir = CONFIG.paths.videos_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    return {
-        'format': CONFIG.download_quality,
-        'outtmpl': str(output_dir / '%(id)s.%(ext)s'),
-        'noplaylist': True,
-        'quiet': True,
-        'logger': TqdmLogger()
-    }

@@ -107,11 +107,6 @@ def update_config_from_args(args: argparse.Namespace):
     elif args.static_cars:
         CONFIG.static_car_enabled = True
 
-    if args.device == 'auto':
-        import torch
-        CONFIG.device = "cuda" if torch.cuda.is_available() else "cpu"
-    else:
-        CONFIG.device = args.device
 
     CONFIG.half_precision = args.half_precision
 
@@ -276,10 +271,7 @@ if __name__ == "__main__":
         "main.py",
         "--urls", "urls.txt",
         "--yolo-model", "yolo8n_pt_512_coco_skiped_crowd.pt",
-        "--sam-model", "mobile_sam.pt",
+        "--sam-model", "moble_sam.pt",
         "--tracker", "botsort.yaml",
-        "--skip-download",
-        "--skip-frames"
-
     ]
     sys.exit(main())

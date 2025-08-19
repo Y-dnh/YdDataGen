@@ -73,8 +73,9 @@ class ConsolidatedReportGenerator:
 
         # Page 1: Configuration
         content.extend(self._create_configuration_section())
+        content.append(PageBreak())  # Force new page after config
 
-        # Dataset Overview
+        # Page 2: Dataset Overview
         content.extend(self._create_dataset_overview(all_video_results, video_info_dict))
 
         # Individual video sections
@@ -139,7 +140,6 @@ class ConsolidatedReportGenerator:
         • SAM Model: {CONFIG.sam_model_path}<br/>
         • SAM Confidence: {CONFIG.sam_confidence}<br/>
         • SAM IoU: {CONFIG.sam_iou}<br/>
-        • Min Confidence for SAM: {CONFIG.sam_min_confidence_for_seg}<br/><br/>
             """
         else:
             config_text += "<br/>"
@@ -166,8 +166,9 @@ class ConsolidatedReportGenerator:
         """
 
         content.append(Paragraph(config_text, self.styles['BodyText']))
-        content.append(Spacer(1, 0.4 * inch))
+        content.append(Spacer(1, 0.6 * inch))  # Larger spacing before page break
         return content
+
 
     def _create_dataset_overview(self, all_video_results: Dict, video_info_dict: Dict = None) -> List:
         """Create dataset overview section."""
@@ -186,6 +187,10 @@ class ConsolidatedReportGenerator:
         total_static_cars = 0
         total_detections = 0
         confidence_sum = 0
+        total_people_tracks = set()
+        total_car_tracks = set()
+        total_pet_tracks = set()
+        total_processing_time = 0
 
         for video_id, results in all_video_results.items():
             # Try to get video info from separate dict first, then from results
@@ -204,9 +209,20 @@ class ConsolidatedReportGenerator:
             total_static_cars += statistics.get("static_cars_count", 0)
             total_detections += statistics.get("total_detections", 0)
             confidence_sum += statistics.get("avg_confidence", 0) * statistics.get("total_detections", 0)
+            total_processing_time += statistics.get("processing_time", 0)
 
+            # Add unique tracks
+            unique_tracks = statistics.get("unique_tracks", {})
+            if isinstance(unique_tracks, dict):
+                total_people_tracks.update(unique_tracks.get("person", set()))
+                total_car_tracks.update(unique_tracks.get("car", set()))
+                total_pet_tracks.update(unique_tracks.get("pet", set()))
+
+        # Calculate aggregated statistics
+        total_tracks = len(total_people_tracks) + len(total_car_tracks) + len(total_pet_tracks)
         avg_confidence = confidence_sum / total_detections if total_detections > 0 else 0
         avg_duration = total_duration / total_videos if total_videos > 0 else 0
+        avg_processing_fps = (total_frames / total_processing_time) if total_processing_time > 0 else 0
 
         overview_text = f"""
         <b>Total Videos:</b> {total_videos}<br/><br/>
@@ -217,15 +233,21 @@ class ConsolidatedReportGenerator:
         <b>Average Confidence:</b> {avg_confidence:.3f}<br/><br/>
 
         <b>Object Counts:</b><br/>
-        • People Tracks: {total_people:,}<br/>
-        • Car Tracks: {total_cars:,}<br/>
-        • Pet Tracks: {total_pets:,}<br/>
-        • Static Cars Detected: {total_static_cars:,}<br/>
+        - People (detections: {total_people:,}, tracks: {len(total_people_tracks):,})<br/>
+        - Cars (detections: {total_cars:,}, tracks: {len(total_car_tracks):,})<br/>
+        - Pets (detections: {total_pets:,}, tracks: {len(total_pet_tracks):,})<br/>
+        - Static Cars: {total_static_cars:,}<br/>
+        - <b>Total Tracks: {total_tracks:,}</b><br/><br/>
+
+        <b>Processing Performance:</b><br/>
+        - Average Inference Speed: {avg_processing_fps:.2f} FPS<br/>
+        - Total Processing Time: {self._format_duration(total_processing_time)}<br/>
         """
 
         content.append(Paragraph(overview_text, self.styles['BodyText']))
-        content.append(Spacer(1, 0.4 * inch))
+        content.append(Spacer(1, 0.6 * inch))  # Larger spacing before page break
         return content
+
 
     def _create_video_section(self, video_id: str, video_info: Dict, statistics: Dict) -> List:
         """Create detailed section for individual video."""
@@ -261,8 +283,15 @@ class ConsolidatedReportGenerator:
         total_detections = statistics.get("total_detections", 0)
         avg_confidence = statistics.get("avg_confidence", 0)
 
-        # Calculate inference FPS
-        inference_fps = frames / duration if duration > 0 else 0
+        # Get unique track counts
+        unique_tracks = statistics.get("unique_tracks", {})
+        people_tracks = len(unique_tracks.get("person", set())) if isinstance(unique_tracks, dict) else 0
+        car_tracks = len(unique_tracks.get("car", set())) if isinstance(unique_tracks, dict) else 0
+        pet_tracks = len(unique_tracks.get("pet", set())) if isinstance(unique_tracks, dict) else 0
+
+        # Calculate actual processing performance
+        processing_time = statistics.get("processing_time", 0)
+        actual_inference_fps = frames / processing_time if processing_time > 0 else 0
 
         video_text = f"""
         <b>Video Properties:</b><br/>
@@ -272,21 +301,22 @@ class ConsolidatedReportGenerator:
         • Resolution: {resolution}<br/><br/>
 
         <b>Detection Results:</b><br/>
-        • People Tracks: {people_count:,}<br/>
-        • Car Tracks: {cars_count:,}<br/>
-        • Pet Tracks: {pets_count:,}<br/>
-        • Static Cars: {static_cars:,}<br/>
-        • Total Detections: {total_detections:,}<br/>
-        • Average Confidence: {avg_confidence:.3f}<br/><br/>
+        - People (detections: {people_count:,}, tracks: {people_tracks:,})<br/>
+        - Cars (detections: {cars_count:,}, tracks: {car_tracks:,})<br/>
+        - Pets (detections: {pets_count:,}, tracks: {pet_tracks:,})<br/>
+        - Static Cars: {static_cars:,}<br/>
+        - Total Detections: {total_detections:,}<br/>
+        - Average Confidence: {avg_confidence:.3f}<br/><br/>
 
         <b>Processing Performance:</b><br/>
-        • Inference Speed: {inference_fps:.2f} FPS<br/>
-        • Processing Efficiency: {(inference_fps / fps * 100) if fps > 0 else 0:.1f}% of real-time<br/>
+        • Inference Speed: {actual_inference_fps:.2f} FPS<br/>
+        • Processing Time: {self._format_duration(processing_time)}<br/>
         """
 
         content.append(Paragraph(video_text, self.styles['BodyText']))
-        content.append(Spacer(1, 0.3 * inch))
+        content.append(Spacer(1, 0.6 * inch))  # Larger spacing before page break
         return content
+
 
     def _format_duration(self, seconds: float) -> str:
         """Format duration in seconds to human readable format."""
