@@ -7,7 +7,6 @@ import torch
 
 @dataclass
 class ProjectPaths:
-    """Contains all project file paths and creates base directories on disk."""
     root: Path = Path(__file__).resolve().parent.parent
 
     def __post_init__(self):
@@ -42,8 +41,16 @@ class Config:
 
         # Global settings
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.inference = 640
+        self.inference_resolution = (640, 640)
+        self.clear_cache_after_video = True
         self.half_precision = False
+
+        # Custom classes mapping
+        self.custom_classes = {
+            0: "person",
+            1: "pet",
+            2: "car"
+        }
 
         # Logging settings
         self.log_level = "INFO"
@@ -78,26 +85,103 @@ class Config:
         self.proximity_thresh = 0.5  # minimum IoU for valid match with ReID
         self.appearance_thresh = 0.8  # minimum appearance similarity for ReID
         self.with_reid = True
+        self.min_confidence_for_tracking = 0.7
+
+        # YOLO Detection settings
+        self.yolo_model_path = "yolov8n.pt"
+        self.yolo_confidence = 0.7
+        self.yolo_iou = 0.5
+        self.yolo_rect = True
+        self.yolo_half = False
+        self.yolo_max_det = 300
+        self.yolo_classes = None  # None for all classes, or list like [0, 2] for specific
+        self.yolo_agnostic_nms = False
+        self.yolo_augment = False
+        self.stream_buffer = False
+        self.yolo_vid_stride = 1
+
+        # SAM Segmentation settings
+        self.sam_model_path = "sam2.1_t.pt"
+        self.sam_enabled = True
+        self.sam_confidence = 0.4
+        self.sam_iou = 0.9
+        self.sam_retina_masks = True
+        self.sam_half = False
+        self.sam_min_confidence_for_seg = 0.4  # Apply SAM only for detections above this
+
+        # Segmentation polygon settings
+        self.max_points = 50
+        self.simplify_tolerance = 0.2
+        self.min_area = 50.0
+        self.smoothing = True
+        self.fill_holes = True
+
+        # Static car detection
+        self.static_car_enabled = True
+        self.movement_threshold = 100.0  # pixels - if any movement > this, car is not static
+        self.min_static_duration = 300  # minimum frames to consider truly static
+        self.static_confidence_threshold = 0.3
 
 
-        #TODO Yolo settings
+    def get_tracker_path(self) -> str:
+        """Get full path to tracker configuration."""
+        # Standard trackers - використовуємо наші створені файли
+        if self.tracker_type in ["botsort.yaml", "bytetrack.yaml"]:
+            tracker_path = self.paths.models_dir / "trackers" / self.tracker_type
+            if tracker_path.exists():
+                return str(tracker_path)
+            else:
+                # Fallback до стандартного шляху якщо файл не знайдено
+                print(f"Warning: Tracker file {tracker_path} not found, using default")
+                return self.tracker_type
 
-        # Custom classes mapping
-        self.custom_classes = {
-            0: "person",
-            1: "pet",
-            2: "car"
+        # Custom tracker в папці trackers
+        custom_path = self.paths.models_dir / "trackers" / self.tracker_type
+        if custom_path.exists():
+            return str(custom_path)
+
+        # Fallback до назви трекера як є
+        return self.tracker_type
+
+    def get_yolo_params(self) -> dict:
+        """Get YOLO parameters for model.track() call including tracker parameters."""
+        params = {
+            "conf": self.yolo_confidence,
+            "iou": self.yolo_iou,
+            "device": self.device,
+            "verbose": False,
+            "save": False,
+            "imgsz": self.inference_resolution,
+            "max_det": self.yolo_max_det,
+            "half": self.yolo_half or self.half_precision,
+            "agnostic_nms": self.yolo_agnostic_nms,
+            "augment": self.yolo_augment,
+            "tracker": self.get_tracker_path(),
+            "rect": self.yolo_rect,
+            "stream_buffer": self.stream_buffer,
+            "vid_stride": self.yolo_vid_stride,
         }
 
+        if self.yolo_classes is not None:
+            params["classes"] = self.yolo_classes
 
-        #TODO SAM
+        return params
 
-        #TODO Polygon
-
-        #TODO Static cars
-
+    def get_sam_params(self) -> dict:
+        """Get SAM parameters for prediction."""
+        return {
+            "conf": self.sam_confidence,
+            "iou": self.sam_iou,
+            "retina_masks": self.sam_retina_masks,
+            "device": self.device,
+            "verbose": False,
+            "save": False,
+            "half": self.sam_half or self.half_precision,
+            "imgsz": self.inference_resolution,
+        }
 
 
 # Global configuration instance
 CONFIG = Config()
+
 
