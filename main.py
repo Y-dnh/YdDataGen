@@ -228,6 +228,7 @@ def main():
             final_annotation_file = final_annotator.save_final_annotations(
                 processed_annotation_files,
                 video_info_dict
+                # todo check video quality
             )
 
             if final_annotation_file:

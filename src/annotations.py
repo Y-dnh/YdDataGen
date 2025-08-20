@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
 import logging
-import numpy as np
 from pycocotools.coco import COCO
 
 from src.config import CONFIG
@@ -182,6 +181,9 @@ class COCOAnnotationGenerator:
         except Exception as e:
             logger.error(f"Failed to save annotations for {video_id}: {e}")
             raise
+
+        # Validate with pycocotools
+        self._validate_coco_format(output_file)
 
         self.video_id_counter += 1
         return output_file
