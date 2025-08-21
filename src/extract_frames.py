@@ -10,23 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def extract_frames(video_info_dict: Dict[str, Dict]) -> Dict[str, Dict]:
-    """
-    Extracts all frames from each video specified in the input dictionary.
 
-    For each video, it creates a dedicated folder and saves every frame as a
-    separate JPG image. It then updates the input dictionary with the total
-    frame count and the path to the directory containing the frames.
-
-    Args:
-        video_info_dict: A dictionary where keys are video IDs and values are
-                         dictionaries containing video metadata. Each inner
-                         dictionary MUST have a 'path' key pointing to the video file.
-
-    Returns:
-        The updated `video_info_dict` with two new keys for each video:
-        "frames" (the total number of extracted frames) and "frames_dir"
-        (the path to the directory where frames were saved).
-    """
     logger.info("Starting frame extraction process")
     print("=" * 50 + "\nExtracting frames\n" + "=" * 50)
 
@@ -57,7 +41,6 @@ def extract_frames(video_info_dict: Dict[str, Dict]) -> Dict[str, Dict]:
                     if not ret:
                         break
 
-                    # Construct the filename for the current frame. e.g., "my_video_00001.jpg".
                     frame_file = frames_dir / f"{video_id}_{frame_idx:05d}.jpg"
                     cv2.imwrite(str(frame_file), frame)
 

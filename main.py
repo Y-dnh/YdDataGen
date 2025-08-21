@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 def parse_arguments() -> argparse.Namespace:
-    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description='YtDataGen - Generate video datasets with object detection and tracking',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -35,11 +34,9 @@ Examples:
         """
     )
 
-    # Required arguments
     parser.add_argument('--urls', '-u', type=str, required=True,
                         help='Path to text file containing YouTube URLs')
 
-    # Model configuration
     parser.add_argument('--yolo-model', type=str, default=CONFIG.yolo_model_path,
                         help=f'YOLO model path (default: {CONFIG.yolo_model_path})')
     parser.add_argument('--sam-model', type=str, default=CONFIG.sam_model_path,
@@ -47,7 +44,6 @@ Examples:
     parser.add_argument('--tracker', type=str, default=CONFIG.tracker_type,
                         help=f'Tracker type (default: {CONFIG.tracker_type})')
 
-    # Detection parameters
     parser.add_argument('--confidence', type=float, default=CONFIG.yolo_confidence,
                         help=f'YOLO confidence threshold (default: {CONFIG.yolo_confidence})')
     parser.add_argument('--iou', type=float, default=CONFIG.yolo_iou,
@@ -55,7 +51,6 @@ Examples:
     parser.add_argument('--sam-conf', type=float, default=CONFIG.sam_confidence,
                         help=f'SAM confidence threshold (default: {CONFIG.sam_confidence})')
 
-    # Processing options
     parser.add_argument('--no-sam', action='store_true', help='Disable SAM segmentation')
     parser.add_argument('--static-cars', action='store_true', default=CONFIG.static_car_enabled,
                         help='Enable static car detection')
@@ -63,21 +58,17 @@ Examples:
     parser.add_argument('--max-points', type=int, default=CONFIG.max_points,
                         help=f'Max polygon points (default: {CONFIG.max_points})')
 
-    # Output options
     parser.add_argument('--output-dir', '-o', type=str, help='Output directory')
     parser.add_argument('--no-report', action='store_true', help='Skip consolidated report generation')  # <<< ЗМІНЕНО
 
-    # Skip options
     parser.add_argument('--skip-download', action='store_true', help='Skip video download')
     parser.add_argument('--skip-frames', action='store_true', help='Skip frame extraction')
 
-    # Device and performance
     parser.add_argument('--device', type=str, choices=['cpu', 'cuda', 'auto'], default='auto',
                         help='Device to use for inference')
     parser.add_argument('--half-precision', action='store_true', default=CONFIG.half_precision,
                         help='Use FP16 inference')
 
-    # Logging
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose logging')
     parser.add_argument('--debug', action='store_true', help='Debug logging')
     parser.add_argument('--quiet', '-q', action='store_true', help='Quiet mode')
@@ -86,11 +77,10 @@ Examples:
 
 
 def update_config_from_args(args: argparse.Namespace):
-    """Update configuration with command line arguments."""
     CONFIG.paths.urls_file = Path(args.urls)
     if args.output_dir:
         CONFIG.paths.root = Path(args.output_dir)
-        CONFIG.paths = CONFIG.paths.__class__()  # Reinitialize paths
+        CONFIG.paths = CONFIG.paths.__class__()
 
     CONFIG.yolo_model_path = args.yolo_model
     CONFIG.sam_model_path = args.sam_model
@@ -123,26 +113,19 @@ def process_video(
         video_info: Dict,
         inference_engine: InferenceEngine,
 ) -> Dict:
-    """
-    Обробити одне відео: запустити інференс, згенерувати анотації
-    та повернути результати для фінального звіту.
-    """
     logger.info(f"Processing video: {video_id}")
     annotation_generator = COCOAnnotationGenerator()
     try:
-        # Крок 1: Запуск інференсу
         video_results = inference_engine.process_video(video_id, video_info)
         if not video_results or not video_results.get("annotations"):
             logger.warning(f"No results returned from inference for video {video_id}")
             return None
 
-        # Крок 2: Генерація анотацій
         annotation_file = annotation_generator.save_video_annotations(
             video_results, video_id, video_info
         )
         video_results['annotation_file_path'] = annotation_file
 
-        # Крок 3: Очищення пам'яті
         inference_engine.clear_memory()
 
         logger.info(f"Completed processing for {video_id}")
@@ -155,10 +138,8 @@ def process_video(
 
 
 def main():
-    """Основна точка входу з оптимізованою обробкою та єдиним звітом."""
     args = parse_arguments()
 
-    # Налаштування проєкту та логування
     update_config_from_args(args)
     setup_project()
     logger.info("=" * 60)
@@ -167,7 +148,7 @@ def main():
     logger.info("=" * 60)
 
     try:
-        # --- Крок 1: Завантаження відео ---
+
         video_info_dict = {}
         if not args.skip_download:
             logger.info("Step 1/4: Downloading videos")
@@ -184,7 +165,6 @@ def main():
             for video_file in existing_videos:
                 video_info_dict[video_file.stem] = {"path": str(video_file)}
 
-        # --- Крок 2: Екстракція кадрів ---
         if not args.skip_frames:
             logger.info("Step 2/4: Extracting frames")
             extract_frames(video_info_dict)
@@ -202,12 +182,11 @@ def main():
             else:
                 logger.warning(f"Path for video {video_id} is missing or invalid.")
 
-        # --- Крок 3: Обробка відео та збір результатів ---
         logger.info("Step 3/4: Running inference and generating annotations")
 
 
         all_video_results = {}
-        processed_annotation_files = []  # ✅ Змінено назву для ясності
+        processed_annotation_files = []
 
         for video_id, video_info in video_info_dict.items():
             inference_engine = InferenceEngine()
@@ -218,11 +197,9 @@ def main():
                     processed_annotation_files.append(results["annotation_file_path"])
 
 
-        # Генерація фінального JSON файлу з анотаціями
         if processed_annotation_files:
             logger.info("Step 4/4: Creating final combined annotations file...")
 
-            # ✅ ВИПРАВЛЕННЯ: Створюємо новий, "чистий" генератор ЛИШЕ для злиття файлів
             final_annotator = COCOAnnotationGenerator()
 
             final_annotation_file = final_annotator.save_final_annotations(
@@ -234,7 +211,6 @@ def main():
             if final_annotation_file:
                 logger.info(f"Final annotations file created: {final_annotation_file}")
 
-                # Генерація фінального звіту
                 logger.info("Generating consolidated final report...")
                 report_generator = ConsolidatedReportGenerator()
                 report_path = report_generator.generate_consolidated_report(
@@ -248,7 +224,6 @@ def main():
         else:
             logger.warning("No videos were processed successfully. Skipping final report and annotation generation.")
 
-        # --- Фінальне зведення ---
         logger.info("=" * 60)
         logger.info("PROCESSING COMPLETE")
         logger.info(f"Total videos processed successfully: {len(all_video_results)}")
@@ -267,12 +242,11 @@ def main():
         return 1
 
 if __name__ == "__main__":
-    # Для зручності тестування, ви можете залишити або змінити ці параметри
     sys.argv = [
         "main.py",
         "--urls", "urls.txt",
         "--yolo-model", "yolo8n_pt_512_coco_skiped_crowd.pt",
-        "--sam-model", "moble_sam.pt",
+        "--sam-model", "mobile_sam.pt",
         "--tracker", "botsort.yaml",
     ]
     sys.exit(main())

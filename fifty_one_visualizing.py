@@ -1,18 +1,8 @@
 import fiftyone as fo
 
-def launch_fiftyone_bbox_visualizing(config):
-    """
-    Launches FiftyOne to visualize bounding boxes on a COCO-annotated dataset.
-
-    Args:
-        config: A configuration object containing paths to the dataset and annotation files.
-    """
-
-    # data_path= config.dataset_dir / 'test'
-    # labels_path= config.dataset_dir / "annotations/instances_test.json"
-
-    data_path= "/dataset/data/fOJUh03ttqY"
-    labels_path= "C:/YtDataGen/dataset/labels_final1.json"
+def launch_fiftyone_bbox_visualizing():
+    data_path= "C:/YtDataGen/dataset/data/fOJUh03ttqY"
+    labels_path= "C:/YtDataGen/dataset/fOJUh03ttqY_annotations.json"
 
     # Import the dataset
     dataset = fo.Dataset.from_dir(
@@ -25,10 +15,7 @@ def launch_fiftyone_bbox_visualizing(config):
     session.wait()
 
 if __name__ == '__main__':
-    from config import create_config
-
-    config = create_config()
-    launch_fiftyone_bbox_visualizing(config)
+    launch_fiftyone_bbox_visualizing()
 
 
 # FilterLabels, detection, ..., True, False

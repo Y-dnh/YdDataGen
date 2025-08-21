@@ -7,12 +7,11 @@ import logging
 from pycocotools.coco import COCO
 
 from src.config import CONFIG
-
+from src.utils import NpEncoder
 logger = logging.getLogger(__name__)
 
 
 class COCOAnnotationGenerator:
-    """Simplified COCO annotations generator using pycocotools standard."""
 
     def __init__(self):
         self.annotation_id = 1
@@ -20,25 +19,21 @@ class COCOAnnotationGenerator:
         self.video_id_counter = 0
 
     def create_coco_dataset(self, video_results: Dict, video_id: str, video_info: Dict) -> Dict[str, Any]:
-        """Create COCO format dataset for a single video."""
         logger.info(f"Creating COCO annotations for video: {video_id}")
 
-        # Get video dimensions
         height, width = self._get_video_dimensions(video_id, video_info)
 
         coco_data = {
             "info": self._create_info_section(),
-            "licenses": [],  # Not used
+            "licenses": [],
             "images": [],
             "annotations": [],
             "categories": self._create_categories_section(),
             "videos": [self._create_video_section(video_id, video_info, width, height)]
         }
 
-        # Process annotations
         for frame_data in video_results.get("annotations", []):
             frame_id = frame_data["frame_id"]
-            # Add image info
             image_info = {
                 "id": self.image_id,
                 "width": width,
@@ -48,7 +43,6 @@ class COCOAnnotationGenerator:
             }
             coco_data["images"].append(image_info)
 
-            # Process detections
             for detection in frame_data.get("detections", []):
                 if self._validate_detection(detection, width, height):
                     annotation = self._create_annotation(
@@ -64,9 +58,7 @@ class COCOAnnotationGenerator:
         return coco_data
 
     def _get_video_dimensions(self, video_id: str, video_info: Dict) -> Tuple[int, int]:
-        """Get video dimensions with fallback strategies."""
 
-        # Try from video_info
         if "width" in video_info and "height" in video_info:
             try:
                 width, height = int(video_info["width"]), int(video_info["height"])
@@ -75,7 +67,6 @@ class COCOAnnotationGenerator:
             except (ValueError, TypeError):
                 pass
 
-        # Try to read from first frame
         try:
             video_path = Path(video_info["path"])
             frames_dir = CONFIG.paths.data_dir / video_path.stem
@@ -88,13 +79,11 @@ class COCOAnnotationGenerator:
         except Exception as e:
             logger.debug(f"Could not read frame for dimensions: {e}")
 
-        # Use inference resolution as fallback
-        width, height = CONFIG.inference_resolution
+        width, height = CONFIG.yolo_imgsz, CONFIG.yolo_imgsz
         logger.warning(f"Using inference resolution {width}x{height} for video {video_id}")
         return height, width
 
     def _create_info_section(self) -> Dict[str, Any]:
-        """Create COCO info section."""
         return {
             "description": "YtDataGen Video Dataset",
             "version": "1.0",
@@ -104,7 +93,6 @@ class COCOAnnotationGenerator:
         }
 
     def _create_categories_section(self) -> List[Dict[str, Any]]:
-        """Create COCO categories section."""
         categories = []
 
         for class_id, class_name in CONFIG.custom_classes.items():
@@ -117,7 +105,6 @@ class COCOAnnotationGenerator:
         return categories
 
     def _create_video_section(self, video_id: str, video_info: Dict, width: int, height: int) -> Dict[str, Any]:
-        """Create video information section."""
         return {
             "id": self.video_id_counter,
             "name": video_id,
@@ -129,7 +116,6 @@ class COCOAnnotationGenerator:
         }
 
     def _validate_detection(self, detection: Dict, img_width: int, img_height: int) -> bool:
-        """Validate detection data."""
         bbox = detection.get("bbox", [])
         if len(bbox) != 4:
             return False
@@ -144,7 +130,6 @@ class COCOAnnotationGenerator:
         return True
 
     def _create_annotation(self, detection: Dict, image_id: int, frame_id: int) -> Dict[str, Any]:
-        """Create COCO annotation."""
         annotation = {
             "id": self.annotation_id,
             "image_id": image_id,
@@ -156,7 +141,6 @@ class COCOAnnotationGenerator:
             "score": detection["confidence"],
         }
 
-        # Add segmentation if available
         if detection.get("segmentation"):
             annotation["segmentation"] = detection["segmentation"]
         else:
@@ -166,7 +150,6 @@ class COCOAnnotationGenerator:
         return annotation
 
     def save_video_annotations(self, video_results: Dict, video_id: str, video_info: Dict) -> Path:
-        """Save annotations for a single video."""
         coco_data = self.create_coco_dataset(video_results, video_id, video_info)
 
         output_file = CONFIG.paths.annotations_dir / f"{video_id}_annotations.json"
@@ -174,7 +157,7 @@ class COCOAnnotationGenerator:
 
         try:
             with open(output_file, 'w', encoding='utf-8') as f:
-                json.dump(coco_data, f, indent=2, ensure_ascii=False, default=str)
+                json.dump(coco_data, f, indent=2, ensure_ascii=False, cls=NpEncoder)
 
             logger.info(f"Saved annotations to: {output_file}")
 
@@ -182,7 +165,6 @@ class COCOAnnotationGenerator:
             logger.error(f"Failed to save annotations for {video_id}: {e}")
             raise
 
-        # Validate with pycocotools
         self._validate_coco_format(output_file)
 
         self.video_id_counter += 1
@@ -190,10 +172,7 @@ class COCOAnnotationGenerator:
 
 
     def create_final_dataset(self, all_video_annotations: List[Path], video_info_dict: Dict) -> Dict[str, Any]:
-        """
-        Створює фінальний об'єднаний COCO датасет з індивідуальних файлів,
-        інтелектуально перепризначаючи ID, щоб уникнути конфліктів.
-        """
+
         logger.info("Creating final combined COCO dataset")
 
         final_dataset = {
@@ -205,12 +184,10 @@ class COCOAnnotationGenerator:
             "annotations": []
         }
 
-        # Глобальні лічильники для нових, унікальних ID
         new_image_id_counter = 1
         new_annotation_id_counter = 1
         new_video_id_counter = 1
 
-        # Сортуємо файли для стабільного порядку
         for annotation_file in sorted(all_video_annotations):
             try:
                 with open(annotation_file, 'r', encoding='utf-8') as f:
@@ -219,30 +196,23 @@ class COCOAnnotationGenerator:
                 logger.error(f"Failed to read or parse {annotation_file}: {e}")
                 continue
 
-            # Мапа для відстеження старих ID зображень -> нових ID у межах цього файлу
             image_id_map = {}
 
-            # 1. Обробка зображень (images)
             for image in video_data.get("images", []):
                 old_image_id = image["id"]
 
-                # Створюємо запис у мапі: старий ID тепер вказує на новий унікальний ID
                 image_id_map[old_image_id] = new_image_id_counter
 
-                # Призначаємо новий унікальний ID для зображення
                 image["id"] = new_image_id_counter
                 final_dataset["images"].append(image)
                 new_image_id_counter += 1
 
-            # 2. Обробка анотацій (annotations)
             for annotation in video_data.get("annotations", []):
                 old_image_id = annotation["image_id"]
 
-                # Знаходимо новий ID зображення, до якого прив'язана ця анотація
                 if old_image_id in image_id_map:
                     annotation["image_id"] = image_id_map[old_image_id]
 
-                    # Призначаємо новий унікальний ID для самої анотації
                     annotation["id"] = new_annotation_id_counter
                     final_dataset["annotations"].append(annotation)
                     new_annotation_id_counter += 1
@@ -250,7 +220,6 @@ class COCOAnnotationGenerator:
                     logger.warning(
                         f"Skipping orphan annotation from {annotation_file} with missing image_id: {old_image_id}")
 
-            # 3. Обробка відео (videos)
             for video in video_data.get("videos", []):
                 video["id"] = new_video_id_counter
                 final_dataset["videos"].append(video)
@@ -272,7 +241,7 @@ class COCOAnnotationGenerator:
             CONFIG.paths.labels_final_path.parent.mkdir(parents=True, exist_ok=True)
 
             with open(CONFIG.paths.labels_final_path, 'w', encoding='utf-8') as f:
-                json.dump(final_dataset, f, indent=2, ensure_ascii=False, default=str)
+                json.dump(final_dataset, f, indent=2, ensure_ascii=False, cls=NpEncoder)
 
             # Validate with pycocotools
             self._validate_coco_format(CONFIG.paths.labels_final_path)

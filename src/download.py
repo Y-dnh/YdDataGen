@@ -10,13 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class TqdmLogger:
-    """
-    A custom logger class designed to suppress output from yt-dlp.
-    By default, yt-dlp prints a lot of information to the console, which can
-    interfere with the visual output of our `tqdm` progress bar.
-    This class provides the logging methods that yt-dlp expects, but they
-    do nothing, effectively "muting" yt-dlp's own logging.
-    """
+
 
     def debug(self, msg): pass
 
@@ -26,13 +20,7 @@ class TqdmLogger:
 
 
 def read_urls() -> List[str]:
-    """
-    Read video URLs from a text file.
-    Skips empty lines and lines starting with '#' (comments).
 
-    Returns:
-        List of video URLs
-    """
     try:
         if not CONFIG.paths.urls_file.exists():
             logger.error(f"URLs file not found: {CONFIG.paths.urls_file}")
@@ -52,22 +40,13 @@ def read_urls() -> List[str]:
 
 
 def download_single_video(url: str, ydl_opts: Dict) -> tuple[str, Dict]:
-    """
-    Download a single video and return its metadata.
 
-    Args:
-        url: Video URL to download
-        ydl_opts: yt-dlp options dictionary
-
-    Returns:
-        Tuple of (video_id, video_metadata) or (None, None) if failed
-    """
     try:
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             video_id = info.get('id', f"video_{hash(url) % 10000:04d}")
             video_metadata = {
-                'ext': info.get('ext'),  # File extension (e.g., 'mp4', 'webm')
+                'ext': info.get('ext'),
                 'filesize': info.get('filesize'),
                 'path': None
             }
@@ -86,14 +65,7 @@ def download_single_video(url: str, ydl_opts: Dict) -> tuple[str, Dict]:
 
 
 def download_videos() -> Dict[str, Dict]:
-    """
-    Download videos from URLs listed in the configured file.
 
-    Returns:
-        A dictionary containing information about successfully downloaded videos.
-        The keys are the unique video IDs, and the values are dictionaries
-        of their metadata (duration, path, etc.).
-    """
     urls = read_urls()
     if not urls:
         logger.error("No URLs found to download")
@@ -108,8 +80,8 @@ def download_videos() -> Dict[str, Dict]:
     video_info_dict = {}
 
     ydl_opts = {
-        'format': CONFIG.download_quality,  # The video/audio quality. Pulled from our config.
-        'outtmpl': str(output_dir / '%(id)s.%(ext)s'), # A template for the output filename. We use the video's ID and extension.
+        'format': CONFIG.download_quality,
+        'outtmpl': str(output_dir / '%(id)s.%(ext)s'),
         'noplaylist': True,
         'quiet': True,
         'logger': TqdmLogger()

@@ -8,7 +8,6 @@ class ProjectPaths:
     root: Path = Path(__file__).resolve().parent.parent
 
     def __post_init__(self):
-        # Define all paths
         self.videos_dir = self.root / "dataset" / "videos"
         self.data_dir = self.root / "dataset" / "data"
         self.annotations_dir = self.root / "dataset" / "annotations_per_videos"
@@ -19,7 +18,6 @@ class ProjectPaths:
         self.logs_dir = self.root / "logs"
 
     def ensure_dirs(self):
-        """Create all necessary directories if they do not already exist."""
         for path in (
                 self.videos_dir,
                 self.data_dir,
@@ -39,7 +37,6 @@ class Config:
 
         # Global settings
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.inference_resolution = (640, 640)
         self.clear_cache_after_video = True
         self.half_precision = False
 
@@ -64,7 +61,7 @@ class Config:
                                  f"bestvideo[height={self.video_quality}]/"
                                  f"bestvideo[height<={self.video_quality}]/"
                                  f"bestvideo[width<={self.video_quality}]/"
-                                 f"best")
+                                 f"bestvideo")
         self.download_timeout = 300
 
         # Tracking settings
@@ -96,6 +93,7 @@ class Config:
         self.yolo_agnostic_nms = False
         self.yolo_augment = False
         self.stream_buffer = False
+        self.yolo_imgsz = 512
 
         # SAM Segmentation settings
         self.sam_model_path = "sam2.1_t.pt"
@@ -104,6 +102,8 @@ class Config:
         self.sam_iou = 0.5
         self.sam_retina_masks = True
         self.sam_half = False
+        self.sam_imgsz = 512
+        self.sam_add_center_point: bool = False
 
         # Segmentation polygon settings
         self.max_points = 20
@@ -147,7 +147,7 @@ class Config:
             "device": self.device,
             "verbose": False,
             "save": False,
-            "imgsz": self.inference_resolution,
+            "imgsz": self.yolo_imgsz,
             "max_det": self.yolo_max_det,
             "half": self.yolo_half or self.half_precision,
             "agnostic_nms": self.yolo_agnostic_nms,
@@ -172,7 +172,7 @@ class Config:
             "verbose": False,
             "save": False,
             "half": self.sam_half or self.half_precision,
-            "imgsz": self.inference_resolution,
+            "imgsz": self.sam_imgsz,
         }
 
 
