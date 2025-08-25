@@ -38,8 +38,8 @@ YtDataGen is a comprehensive tool for generating computer vision datasets from Y
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/ytdatagen.git
-cd ytdatagen
+git clone https://github.com/Y-dnh/YdDataGen.git
+cd YdDataGen
 
 # Install requirements
 pip install -r requirements.txt
@@ -47,6 +47,7 @@ pip install -r requirements.txt
 or
 ```bash
 conda env create -f environment.yml
+conda activate YdDataGen
 ```
 
 Rewrite the config.py file with your own tracker parameters. If you want to control it after loading the models, rewrite the tracker yaml file.
@@ -361,8 +362,11 @@ project_root/
 ├── logs/
 │   └── ytdatagen.log             # Processing logs
 └── visualized_videos/             # Annotated videos (optional)
-    ├── VIDEO_ID1_visualized.mp4
-    └── VIDEO_ID2_visualized.mp4
+│   ├── VIDEO_ID1_visualized.mp4
+│   └── VIDEO_ID2_visualized.mp4
+└── cvat_annotations/             # CVAT for video 1.1 ver.
+    ├── VIDEO_ID1.xml
+    └── VIDEO_ID2.xml
 ```
 
 ## Visualization
@@ -403,6 +407,7 @@ python src/download_models.py
 - `yolov8m.pt`: Medium
 - `yolov8l.pt`: Large
 - `yolov8x.pt`: Extra Large (most accurate)
+- `Your custom yolo model`
 
 **SAM Segmentation Models**:
 - `sam2.1_t.pt`: Tiny (fastest)
