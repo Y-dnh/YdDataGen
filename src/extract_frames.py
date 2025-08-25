@@ -10,13 +10,24 @@ logger = logging.getLogger(__name__)
 
 
 def extract_frames(video_info_dict: Dict[str, Dict]) -> Dict[str, Dict]:
+    """Extract all frames from downloaded videos and save as individual images.
 
+    Creates a directory for each video and saves frames as sequentially numbered JPEGs.
+    Updates video_info_dict with frame count and directory path.
+
+    Args:
+        video_info_dict: Dictionary mapping video_id -> metadata from download step
+
+    Returns:
+        Updated video_info_dict with frame extraction metadata added
+    """
     logger.info("Starting frame extraction process")
     print("=" * 50 + "\nExtracting frames\n" + "=" * 50)
 
     for video_id, info in video_info_dict.items():
         try:
             video_path = Path(info["path"])
+            # Create separate directory for each video's frames using video stem name
             frames_dir = CONFIG.paths.data_dir / video_path.stem
             frames_dir.mkdir(parents=True, exist_ok=True)
 
@@ -31,16 +42,19 @@ def extract_frames(video_info_dict: Dict[str, Dict]) -> Dict[str, Dict]:
                 logger.error(f"Cannot open video file: {video_path}")
                 continue
 
+            # Get total frames for progress tracking
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            frame_idx = 0  # Initialize a counter for the frames we extract.
+            frame_idx = 0  # Track actual extracted frames (may differ from total due to corruption)
 
+            # Custom progress bar format for better readability during multi-video processing
             with tqdm(total=total_frames, desc=f"{video_id}: extracting", unit="frame",
                       bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}') as pbar:
                 while True:
                     ret, frame = cap.read()
-                    if not ret:
+                    if not ret:  # End of video or read error
                         break
 
+                    # Save with zero-padded frame numbers for proper sorting
                     frame_file = frames_dir / f"{video_id}_{frame_idx:05d}.jpg"
                     cv2.imwrite(str(frame_file), frame)
 
@@ -49,6 +63,7 @@ def extract_frames(video_info_dict: Dict[str, Dict]) -> Dict[str, Dict]:
 
             cap.release()
 
+            # Update metadata with actual extraction results
             info["frames"] = frame_idx
             info["frames_dir"] = str(frames_dir)
 

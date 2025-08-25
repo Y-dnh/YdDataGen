@@ -51,13 +51,13 @@ TEXT_CONFIG = {
 
 
 class VideoAnnotator:
-    """Клас для створення анотованих відео з покращеним стилем."""
+    """Creates annotated videos with enhanced visual styling and text rendering."""
 
     def __init__(self):
         self.colors = {}
 
     def _get_color(self, class_id: int) -> tuple:
-        """Отримує колір для ID класу."""
+        """Assigns consistent colors to class IDs using cycling through predefined palette."""
         if class_id not in self.colors:
             self.colors[class_id] = DEFAULT_COLORS[len(self.colors) % len(DEFAULT_COLORS)]
         return self.colors[class_id]
@@ -74,24 +74,31 @@ class VideoAnnotator:
     def _draw_text_with_background(self, frame: np.ndarray, text: str,
                                    position: Tuple[int, int], color: Tuple[int, int, int],
                                    background_alpha: float = 0.8) -> np.ndarray:
-        """Draw text with semi-transparent background for better readability."""
+        """
+        Draws text with semi-transparent background for better readability.
+        Uses alpha blending to create overlay effect without completely obscuring the video.
+        """
         x, y = position
         text_width, text_height = self._get_text_size(text)
 
+        # Calculate background rectangle bounds with padding
         bg_x1 = x - TEXT_CONFIG['padding'] // 2
         bg_y1 = y - text_height - TEXT_CONFIG['padding']
         bg_x2 = x + text_width + TEXT_CONFIG['padding'] // 2
         bg_y2 = y + TEXT_CONFIG['padding'] // 2
 
+        # Clamp to frame boundaries to prevent drawing outside
         bg_x1 = max(0, bg_x1)
         bg_y1 = max(0, bg_y1)
         bg_x2 = min(frame.shape[1], bg_x2)
         bg_y2 = min(frame.shape[0], bg_y2)
 
+        # Create semi-transparent background using overlay technique
         overlay = frame.copy()
         cv2.rectangle(overlay, (bg_x1, bg_y1), (bg_x2, bg_y2), color, -1)
         cv2.addWeighted(overlay, background_alpha, frame, 1 - background_alpha, 0, frame)
 
+        # Add border for better definition
         cv2.rectangle(frame, (bg_x1, bg_y1), (bg_x2, bg_y2),
                       tuple(max(0, c - 50) for c in color), 1)
 
@@ -102,12 +109,16 @@ class VideoAnnotator:
         return frame
 
     def _draw_multi_line_text(self, frame: np.ndarray, texts: List[str],
-                               box_position: Tuple[int, int], color: Tuple[int, int, int]):
-        """Draw multiple text lines above bounding box with proper spacing."""
+                              box_position: Tuple[int, int], color: Tuple[int, int, int]):
+        """
+        Draws multiple text lines near bounding box with intelligent positioning.
+        Automatically positions text above or below bbox based on available space.
+        """
         x, y = box_position
         total_height = 0
         text_infos = []
 
+        # Pre-calculate all text dimensions
         for text in texts:
             text_width, text_height = self._get_text_size(text)
             text_infos.append((text, text_width, text_height))
@@ -116,32 +127,41 @@ class VideoAnnotator:
         start_y = y - TEXT_CONFIG['margin']
         current_y = start_y
 
+        # If text would go above frame bounds, position below the bbox instead
         if start_y - total_height < 0:
             current_y = y + TEXT_CONFIG['line_height']
 
         for i, (text, text_width, text_height) in enumerate(text_infos):
+            # Ensure text stays within frame horizontally
             text_x = max(TEXT_CONFIG['padding'], min(x, frame.shape[1] - text_width - TEXT_CONFIG['padding']))
             text_y = max(text_height + TEXT_CONFIG['padding'],
                          min(current_y, frame.shape[0] - TEXT_CONFIG['padding']))
 
             self._draw_text_with_background(frame, text, (text_x, text_y), color)
 
+            # Update position for next line based on positioning strategy
             if start_y - total_height < 0:
-                current_y += TEXT_CONFIG['line_height']
+                current_y += TEXT_CONFIG['line_height']  # Going down
             else:
-                current_y -= (text_height + TEXT_CONFIG['padding'])
+                current_y -= (text_height + TEXT_CONFIG['padding'])  # Going up
 
     def _draw_bbox_only(self, frame: np.ndarray, bbox: List[int], color: Tuple[int, int, int]):
-        """Draws only the bounding box rectangle with enhanced style."""
+        """Draws bounding box with enhanced dual-border style for better visibility."""
         x, y, w, h = [int(c) for c in bbox]
         x1, y1, x2, y2 = x, y, x + w, y + h
 
+        # Main border
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 3)
+        # Inner highlight border for depth effect
         inner_color = tuple(min(255, c + 30) for c in color)
         cv2.rectangle(frame, (x1 + 1, y1 + 1), (x2 - 1, y2 - 1), inner_color, 1)
 
-    def _prepare_annotation_texts(self, ann: Dict[str, Any], categories: Dict[int, str], options: Dict[str, bool]) -> List[str]:
-        """Prepares a list of text strings to draw based on visualization options."""
+    def _prepare_annotation_texts(self, ann: Dict[str, Any], categories: Dict[int, str], options: Dict[str, bool]) -> \
+    List[str]:
+        """
+        Prepares list of text strings to display based on annotation data and user options.
+        Handles optional confidence scores and track IDs.
+        """
         texts_to_draw = []
         label = categories.get(ann['category_id'], "Unknown")
         confidence = ann.get("score")
@@ -159,27 +179,40 @@ class VideoAnnotator:
         return texts_to_draw
 
     def _draw_polygon_mask(self, frame, polygons, color, alpha=0.25):
-        """Enhanced polygon mask drawing with improved blending."""
+        """
+        Renders segmentation masks with semi-transparent fill and outlined borders.
+        Uses overlay blending for professional appearance without obscuring details.
+        """
         if not polygons: return
 
+        # Create filled overlay for transparency effect
         overlay = frame.copy()
         for polygon_coords in polygons:
-            if not isinstance(polygon_coords, list) or not polygon_coords or len(polygon_coords) < 6: continue
+            if not isinstance(polygon_coords, list) or not polygon_coords or len(polygon_coords) < 6:
+                continue
             points = np.array(polygon_coords).reshape(-1, 2).astype(np.int32)
             cv2.fillPoly(overlay, [points], color)
 
+        # Blend overlay with original frame
         cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
 
+        # Add crisp borders for mask definition
         for polygon_coords in polygons:
-            if not isinstance(polygon_coords, list) or not polygon_coords or len(polygon_coords) < 6: continue
+            if not isinstance(polygon_coords, list) or not polygon_coords or len(polygon_coords) < 6:
+                continue
             points = np.array(polygon_coords).reshape(-1, 2).astype(np.int32)
             cv2.polylines(frame, [points], isClosed=True, color=color, thickness=2)
+            # Inner highlight for depth
             inner_color = tuple(min(255, c + 40) for c in color)
             cv2.polylines(frame, [points], isClosed=True, color=inner_color, thickness=1)
 
     def process_single_video(self, annotation_file: Path, **vis_options):
         """
-        Обробляє одне відео, створюючи анотовану версію з гнучкою логікою візуалізації.
+        Processes a single video file, creating annotated version with flexible visualization options.
+
+        Args:
+            annotation_file: Path to COCO annotation JSON file
+            **vis_options: Dictionary of visualization toggles (show_boxes, show_masks, etc.)
         """
         logger.info(f"Processing annotation file: {annotation_file}")
 
@@ -200,6 +233,7 @@ class VideoAnnotator:
             logger.error(f"Video file not found for annotations: {video_path}")
             return
 
+        # Build lookup structures for efficient frame-to-annotation mapping
         images_index = {img['id']: img for img in data.get('images', [])}
         annotations_by_img_id = defaultdict(list)
         for ann in data.get('annotations', []):
@@ -207,9 +241,12 @@ class VideoAnnotator:
 
         categories = {cat['id']: cat['name'] for cat in data.get('categories', [])}
         self.colors = {cat_id: self._get_color(cat_id) for cat_id in categories}
+
+        # Create frame index to image ID mapping for video synchronization
         frame_to_image_id = {img.get('frame_idx', img['id']): img['id'] for img in images_index.values()}
         logger.info(f"Created mapping for {len(frame_to_image_id)} frames.")
 
+        # Initialize video processing
         cap = cv2.VideoCapture(str(video_path))
         fps = int(cap.get(cv2.CAP_PROP_FPS))
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -228,6 +265,7 @@ class VideoAnnotator:
                 ret, frame = cap.read()
                 if not ret: break
 
+                # Look up annotations for current frame using mapping
                 image_id = frame_to_image_id.get(frame_idx)
                 if image_id and image_id in annotations_by_img_id:
                     for ann in annotations_by_img_id[image_id]:
@@ -236,19 +274,18 @@ class VideoAnnotator:
 
                         color = self.colors.get(cat_id)
 
-                        # --- Розділена логіка візуалізації ---
+                        # --- Modular visualization logic with separate toggles ---
 
-                        # 1. Відобразити маски (якщо увімкнено)
+                        # 1. Render masks first (background layer)
                         if vis_options.get("show_masks", True) and "segmentation" in ann:
                             self._draw_polygon_mask(frame, ann["segmentation"], color)
 
-                        # 2. Відобразити рамки (якщо увімкнено)
+                        # 2. Render bounding boxes (foreground layer)
                         if vis_options.get("show_boxes", True) and "bbox" in ann:
                             self._draw_bbox_only(frame, ann["bbox"], color)
 
-                        # 3. Підготувати та відобразити текст
-                        # Текст малюється, якщо будь-яка текстова опція увімкнена.
-                        # Позиція тексту береться з bbox, навіть якщо він не намальований.
+                        # 3. Render text labels (top layer)
+                        # Text positioning uses bbox even if boxes are hidden
                         if "bbox" in ann:
                             texts_to_draw = self._prepare_annotation_texts(ann, categories, vis_options)
                             if texts_to_draw:
@@ -264,7 +301,7 @@ class VideoAnnotator:
         logger.info(f"Successfully created visualized video: {output_path}")
 
     def process_all_videos(self, **vis_options):
-        """Обробляє всі файли анотацій в директорії."""
+        """Processes all annotation files in the configured directory."""
         annotation_files = list(CONFIG.paths.annotations_dir.glob("*_annotations.json"))
         if not annotation_files:
             logger.warning(f"No annotation files found in {CONFIG.paths.annotations_dir}")

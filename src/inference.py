@@ -15,13 +15,19 @@ logger = logging.getLogger(__name__)
 
 
 class InferenceEngine:
+    """Handles object detection, tracking, and segmentation for video frames.
+
+    Combines YOLO detection/tracking with optional SAM segmentation to create
+    detailed annotations with polygon approximation and car mobility analysis.
+    """
+
     def __init__(self):
-        self.tracks = {}
+        self.tracks = {}  # Track ID -> metadata for mobility analysis
         self.annotation_id = 1
         self.image_id = 1
 
         self.max_points = CONFIG.max_points
-        # todo Douglas-Peucker approximation tolerance explain
+        # Douglas-Peucker approximation tolerance for polygon simplification
         self.tolerance = CONFIG.simplify_tolerance
         self.min_area = CONFIG.min_area
 
@@ -32,13 +38,13 @@ class InferenceEngine:
         self._yolo_params = CONFIG.get_yolo_params()
 
         if CONFIG.fill_holes:
-            # todo ksize explain
+            # Kernel size (3x3) for morphological closing to fill small holes in masks
             self._morphology_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
         self._load_models()
 
-
     def _load_models(self):
+        """Load YOLO and optionally SAM models with proper error handling."""
         logger.info("Loading models...")
 
         try:
@@ -81,11 +87,19 @@ class InferenceEngine:
                 CONFIG.sam_enabled = False
                 self.sam_model = None
 
-
     def process_video(self, video_id: str, video_info: Dict) -> Dict[str, Any]:
+        """Process all frames of a video for detection, tracking, and segmentation.
 
+        Args:
+            video_id: Unique identifier for the video
+            video_info: Metadata including frames directory path
+
+        Returns:
+            Complete annotation results with statistics
+        """
         logger.info(f"Processing video: {video_id}")
-        # todo predictor explain
+
+        # Reset predictor state to avoid memory issues between videos
         if hasattr(self.yolo_model, 'predictor') and self.yolo_model.predictor:
             self.yolo_model.predictor = None
         self.tracks = {}
@@ -126,7 +140,7 @@ class InferenceEngine:
                 try:
                     track_results = self.yolo_model.track(
                         source=str(frame_file),
-                        persist=True,
+                        persist=True,  # Maintain track IDs across frames
                         **self._yolo_params
                     )
 
@@ -134,6 +148,7 @@ class InferenceEngine:
                         track_results[0], frame_idx, frame_file, results["statistics"]
                     )
 
+                    # Apply SAM segmentation if enabled and detections exist
                     if (CONFIG.sam_enabled and self.sam_model and frame_annotation["detections"]):
                         frame_annotation = self._apply_batch_sam_segmentation(frame_file, frame_annotation)
 
@@ -143,7 +158,7 @@ class InferenceEngine:
                     results["annotations"].append(frame_annotation)
                     results["statistics"]["processed_frames"] += 1
 
-                    #todo memory check
+                    # Periodic memory cleanup to prevent CUDA OOM
                     if frame_idx % 50 == 0 and frame_idx > 0:
                         if torch.cuda.is_available():
                             torch.cuda.empty_cache()
@@ -151,8 +166,11 @@ class InferenceEngine:
                 except Exception as e:
                     logger.warning(f"Error processing frame {frame_idx}: {e}")
                     continue
+
             processing_time = time.time() - start_time
             results["statistics"]["processing_time"] = processing_time
+
+        # Analyze car mobility after processing all frames
         moving_cars_count = 0
         static_cars_count = 0
         if CONFIG.static_car_enabled:
@@ -163,6 +181,7 @@ class InferenceEngine:
                 if track_info['is_moving']:
                     moving_cars_count += 1
                 else:
+                    # Only count as static if observed for minimum duration
                     duration = track_info['last_seen_frame'] - track_info['start_frame']
                     if duration >= CONFIG.min_static_duration:
                         static_cars_count += 1
@@ -176,9 +195,8 @@ class InferenceEngine:
         logger.info(f"Completed {video_id}: {results['statistics']}")
         return results
 
-
     def _process_frame_results(self, yolo_result, frame_idx: int, frame_file: Path, stats: Dict) -> Dict:
-
+        """Convert YOLO tracking results to standardized detection format."""
         frame_annotation = {
             "frame_id": frame_idx,
             "file_name": frame_file.name,
@@ -189,6 +207,7 @@ class InferenceEngine:
             boxes = yolo_result.boxes.cpu().numpy()
 
             for i, box in enumerate(boxes.data):
+                # Skip detections below confidence threshold or malformed boxes
                 if len(box) < 7 or box[5] < CONFIG.min_confidence_for_tracking:
                     continue
 
@@ -199,6 +218,7 @@ class InferenceEngine:
 
                 class_name = CONFIG.custom_classes.get(cls_id, f'class_{cls_id}')
 
+                # Extract YOLO segmentation mask if available
                 mask = None
                 if hasattr(yolo_result, 'masks') and yolo_result.masks is not None:
                     if i < len(yolo_result.masks.data):
@@ -211,6 +231,7 @@ class InferenceEngine:
                     "class_name": class_name,
                     "confidence": float(conf),
                     "bbox": [float(x1), float(y1), float(x2 - x1), float(y2 - y1)],
+                    # COCO format: [x, y, width, height]
                     "segmentation": mask,
                     "area": float((x2 - x1) * (y2 - y1)),
                     "sam_applied": False
@@ -221,14 +242,17 @@ class InferenceEngine:
                 stats["total_detections"] += 1
                 stats["unique_tracks"][class_name.lower()].add(track_id)
 
+                # Update track last seen frame
                 if track_id in self.tracks:
                     self.tracks[track_id]['last_seen_frame'] = frame_idx
 
+                # Handle class-specific processing
                 if class_name.lower() == 'car':
                     stats["cars_count"] += 1
 
                     is_new_track = track_id not in self.tracks
 
+                    # Check car mobility: new tracks always, existing static tracks periodically
                     should_check = False
                     if not is_new_track:
                         if not self.tracks[track_id]['is_moving']:
@@ -245,14 +269,15 @@ class InferenceEngine:
 
         return frame_annotation
 
-
     def _apply_batch_sam_segmentation(self, frame_file: Path, frame_annotation: Dict) -> Dict:
+        """Apply SAM segmentation to all detections in a frame using batch processing for efficiency."""
         try:
             image = cv2.imread(str(frame_file))
             if image is None:
                 logger.warning(f"Could not read image: {frame_file}")
                 return frame_annotation
 
+            # Prepare batch inputs for SAM
             all_boxes = []
             all_points = []
             all_point_labels = []
@@ -266,11 +291,12 @@ class InferenceEngine:
                 all_boxes.append(box_prompt)
                 detection_indices.append(det_idx)
 
+                # Add center point prompts for cars to improve segmentation
                 if CONFIG.sam_add_center_point and detection["class_name"] == "car":
                     center_x = x + w / 2
                     center_y = y + h / 2
                     all_points.append([center_x, center_y])
-                    all_point_labels.append(1)
+                    all_point_labels.append(1)  # Positive point
 
             points_to_predict = np.array(all_points) if all_points else None
             labels_to_predict = np.array(all_point_labels) if all_point_labels else None
@@ -279,8 +305,8 @@ class InferenceEngine:
                 sam_results = self.sam_model.predict(
                     source=image,
                     bboxes=all_boxes,
-                    # points=points_to_predict,
-                    # labels=labels_to_predict,
+                    points=points_to_predict,
+                    labels=labels_to_predict,
                     **self._sam_params
                 )
 
@@ -312,9 +338,8 @@ class InferenceEngine:
 
         return frame_annotation
 
-
-
     def _fallback_individual_sam(self, image: np.ndarray, frame_annotation: Dict) -> Dict:
+        """Fallback to individual SAM processing when batch processing fails."""
         logger.debug("Using individual SAM processing as fallback")
 
         for det_idx, detection in enumerate(frame_annotation["detections"]):
@@ -346,21 +371,27 @@ class InferenceEngine:
 
         return frame_annotation
 
-
     def _approximate_segmentation(self, mask: np.ndarray) -> Optional[List[List[float]]]:
+        """Convert binary mask to polygon using contour approximation and simplification.
 
+        Applies Douglas-Peucker algorithm and optional smoothing to create
+        efficient polygon representations suitable for COCO format.
+        """
         if mask is None or mask.size == 0:
             return None
 
         try:
+            # Handle 3D masks by taking first channel
             if len(mask.shape) == 3:
                 mask = mask[0]
 
+            # Ensure binary mask
             if mask.dtype != np.uint8:
                 mask = (mask > 0.5).astype(np.uint8)
             elif not np.all((mask == 0) | (mask == 1)):
                 mask = (mask > 0).astype(np.uint8)
 
+            # Fill small holes using morphological closing
             if CONFIG.fill_holes:
                 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, self._morphology_kernel)
 
@@ -368,6 +399,7 @@ class InferenceEngine:
             if not contours:
                 return None
 
+            # Find largest contour (main object)
             if len(contours) == 1:
                 largest_contour = contours[0]
                 area = cv2.contourArea(largest_contour)
@@ -380,28 +412,29 @@ class InferenceEngine:
             if area < self.min_area:
                 return None
 
+            # Apply Douglas-Peucker approximation
             perimeter = cv2.arcLength(largest_contour, True)
-            epsilon = max(self.tolerance, perimeter * 0.002)
+            epsilon = max(self.tolerance, perimeter * 0.002)  # Minimum 0.2% of perimeter
 
             approx = cv2.approxPolyDP(largest_contour, epsilon, True)
             polygon = approx.flatten().tolist()
 
+            # Reduce points if still too many
             if len(polygon) > self.max_points * 2:
                 polygon = self._reduce_points_optimized(polygon, self.max_points)
 
-            # todo constants
+            # Apply smoothing for medium-sized polygons (8-100 points)
             if CONFIG.smoothing and 8 <= len(polygon) <= 100:
                 polygon = self._smooth_polygon_optimized(polygon)
 
-            return [polygon] if len(polygon) >= 6 else None
+            return [polygon] if len(polygon) >= 6 else None  # Minimum 3 points for valid polygon
 
         except Exception as e:
             logger.warning(f"Segmentation approximation failed: {e}")
             return None
 
-
     def _reduce_points_optimized(self, polygon: List[float], max_points: int) -> List[float]:
-
+        """Reduce polygon points using uniform sampling when Douglas-Peucker isn't sufficient."""
         if len(polygon) <= max_points * 2:
             return polygon
 
@@ -414,18 +447,19 @@ class InferenceEngine:
 
         return [coord for point in reduced_points for coord in point]
 
-
     def _smooth_polygon_optimized(self, polygon: List[float]) -> List[float]:
+        """Apply moving average smoothing to polygon points to reduce noise."""
         if len(polygon) < 8:
             return polygon
 
         points = np.array([(polygon[i], polygon[i + 1]) for i in range(0, len(polygon), 2)])
         smoothed = np.zeros_like(points)
 
+        # Adaptive window size based on polygon complexity
         window = min(3, max(1, len(points) // 6))
 
         for i in range(len(points)):
-
+            # Apply smoothing with boundary handling
             start_idx = max(0, i - window // 2)
             end_idx = min(len(points), i + window // 2 + 1)
 
@@ -433,8 +467,8 @@ class InferenceEngine:
 
         return [coord for point in smoothed for coord in point]
 
-
     def _update_car_mobility(self, track_id: int, bbox: List[float], frame_idx: int):
+        """Track car movement by analyzing center point displacement over time."""
         center_x = (bbox[0] + bbox[2]) / 2
         center_y = (bbox[1] + bbox[3]) / 2
         current_center = (center_x, center_y)
@@ -451,16 +485,18 @@ class InferenceEngine:
 
         track_info = self.tracks[track_id]
 
+        # Calculate displacement from initial position
         displacement = np.sqrt(
             (current_center[0] - track_info['start_center'][0]) ** 2 +
             (current_center[1] - track_info['start_center'][1]) ** 2
         )
 
+        # Mark as moving if displacement exceeds threshold
         if displacement > CONFIG.movement_threshold:
             track_info['is_moving'] = True
 
-
     def clear_memory(self):
+        """Clear GPU cache and tracking data to free memory between videos."""
         if CONFIG.clear_cache_after_video:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()

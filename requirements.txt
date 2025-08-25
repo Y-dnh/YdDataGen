@@ -1,15 +1,17 @@
-# Configuration and Data Handling
+yt-dlp>=2023.7.6
+pathlib2>=2.3.7
+PyYAML>=6.0
+reportlab>=4.0.0
+tqdm>=4.65.0
 requests>=2.31.0
 
-# Progress Bars and Utilities
-tqdm>=4.65.0
-PyYAML>=6.0
-
-# Video Processing and Download
-yt-dlp>=2023.7.6
-
-# Deep Learning and Computer Vision
 ultralytics>=8.3.0
 opencv-python>=4.8.0
 torch>=2.0.0
 torchvision>=0.15.0
+
+numpy>=1.24.0
+pycocotools>=2.0.7
+# fiftyone>=1.7.2
+
+

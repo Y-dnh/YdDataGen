@@ -16,6 +16,8 @@ class ProjectPaths:
         self.models_dir = self.root / "models"
         self.urls_file = self.root / "urls.txt"
         self.logs_dir = self.root / "logs"
+        self.cvat_annotations_dir = self.root / "cvat_annotations"
+
 
     def ensure_dirs(self):
         for path in (
@@ -26,6 +28,7 @@ class ProjectPaths:
                 self.models_dir / "sam",
                 self.models_dir / "trackers",
                 self.logs_dir,
+                self.cvat_annotations_dir,
         ):
             path.mkdir(parents=True, exist_ok=True)
 
@@ -43,8 +46,8 @@ class Config:
         # Custom classes mapping
         self.custom_classes = {
             0: "person",
-            1: "pet",
-            2: "car"
+            2: "pet",
+            1: "car"
         }
 
         # Logging settings
@@ -62,7 +65,6 @@ class Config:
                                  f"bestvideo[height<={self.video_quality}]/"
                                  f"bestvideo[width<={self.video_quality}]/"
                                  f"bestvideo")
-        self.download_timeout = 300
 
         # Tracking settings
         # Set before downloading models if you want to create tracker with custom parameters
@@ -93,7 +95,7 @@ class Config:
         self.yolo_agnostic_nms = False
         self.yolo_augment = False
         self.stream_buffer = False
-        self.yolo_imgsz = 512
+        self.yolo_imgsz = 640
 
         # SAM Segmentation settings
         self.sam_model_path = "sam2.1_t.pt"
@@ -102,12 +104,12 @@ class Config:
         self.sam_iou = 0.5
         self.sam_retina_masks = True
         self.sam_half = False
-        self.sam_imgsz = 512
-        self.sam_add_center_point: bool = False
+        self.sam_imgsz = 640
+        self.sam_add_center_point: bool = True
 
         # Segmentation polygon settings
-        self.max_points = 20
-        self.simplify_tolerance = 0.2
+        self.max_points = 100
+        self.simplify_tolerance = 0.1
         self.min_area = 50.0
         self.smoothing = True
         self.fill_holes = True
@@ -118,25 +120,27 @@ class Config:
         self.min_static_duration = 300  # minimum frames to consider truly static
         self.static_check_interval  = 50
 
+        # CVAT conversion settings
+        self.cvat_enabled = True
+        self.cvat_keyframe_mode = "fps"  # "fps", "interval", or "custom"
+        self.cvat_keyframe_interval = 30  # frames (used when mode is "interval")
+        self.cvat_keyframe_fps_multiplier = 1.0  # keyframe every N seconds (used when mode is "fps")
+        self.cvat_custom_keyframes = []  # custom frame numbers
 
     def get_tracker_path(self) -> str:
         """Get full path to tracker configuration."""
-        # Standard trackers - використовуємо наші створені файли
         if self.tracker_type in ["botsort.yaml", "bytetrack.yaml"]:
             tracker_path = self.paths.models_dir / "trackers" / self.tracker_type
             if tracker_path.exists():
                 return str(tracker_path)
             else:
-                # Fallback до стандартного шляху якщо файл не знайдено
                 print(f"Warning: Tracker file {tracker_path} not found, using default")
                 return self.tracker_type
 
-        # Custom tracker в папці trackers
         custom_path = self.paths.models_dir / "trackers" / self.tracker_type
         if custom_path.exists():
             return str(custom_path)
 
-        # Fallback до назви трекера як є
         return self.tracker_type
 
     def get_yolo_params(self) -> dict:
