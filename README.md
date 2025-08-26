@@ -15,16 +15,31 @@ YtDataGen is a comprehensive tool for generating computer vision datasets from Y
 
 ## Table of Contents
 
+- [Visual Results](#visual-results)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Command Line Arguments](#command-line-arguments)
 - [Configuration](#configuration)
 - [Module Architecture](#module-architecture)
-- [Usage Examples](#usage-examples)
 - [Output Structure](#output-structure)
 - [Visualization](#visualization)
+- [CVAT Export](#cvat-export)
 - [Model Management](#model-management)
-- [Troubleshooting](#troubleshooting)
+- [Performance Comparison](#performance-comparison)
+
+## Visual Results
+
+Below are clickable previews that link to YouTube videos
+
+| Only detection on 8k video | Detection with segmentation with people walking | Football match |
+|-----------------------------|-----------------------------------------------|----------------|
+| [![8k detection](https://img.youtube.com/vi/tDtCKGIMQ7w/maxresdefault.jpg)](https://youtu.be/tDtCKGIMQ7w) | [![People walking](https://img.youtube.com/vi/r00vX-lx7Ok/maxresdefault.jpg)](https://youtu.be/r00vX-lx7Ok) | [![Football match](https://img.youtube.com/vi/ahzNxjBc0zQ/maxresdefault.jpg)](https://youtu.be/ahzNxjBc0zQ) |
+
+| Detection with segmentation of road traffic | Detection with segmentation on road traffic | Light tracking of cars and people |
+|---------------------------------------------|---------------------------------------------|----------------------------------|
+| [![Road traffic detection](https://img.youtube.com/vi/j1OVdiglhug/maxresdefault.jpg)](https://youtu.be/j1OVdiglhug) | [![Road traffic segmentation](https://img.youtube.com/vi/pQPVOvtUTik/maxresdefault.jpg)](https://youtu.be/pQPVOvtUTik) | [![Light tracking](https://img.youtube.com/vi/ynd2h_vO480/maxresdefault.jpg)](https://youtu.be/ynd2h_vO480) |
+
+
 
 ## Installation
 
@@ -174,6 +189,16 @@ custom_classes = {
 5. YOLO settings
 6. SAM settings
 7. Polygon settings
+   
+
+Douglas-Peucker Polygon Simplification Examples
+
+| Max Points = 5 | Max Points = 10 | Max Points = 20 |
+|-------------|--------------|--------------|
+| ![douglas_peucker_5](https://github.com/user-attachments/assets/7d5a65f8-ac24-4d09-9378-7692b146673f) | ![douglas_peucker_10](https://github.com/user-attachments/assets/fa299abc-4d2e-4d2a-b51f-ea7244a923f6) | ![douglas_peucker_20](https://github.com/user-attachments/assets/dd7d7073-293b-4a9c-84c4-2d0f23a1071f) |
+
+
+
 8. Static Car Detection
 9. CVAT conversion settings
 
@@ -198,7 +223,7 @@ custom_classes = {
 ```
 https://youtube.com/watch?v=VIDEO_ID
 https://youtube.com/watch?v=VIDEO_ID 00:00:10 00:01:30  # 10s to 1m30s
-https://youtube.com/watch?v=VIDEO_ID 00:05:00           # From 5 minutes
+https://youtube.com/watch?v=VIDEO_ID 
 ```
 
 #### 4. `extract_frames.py` - Frame Extraction
@@ -298,44 +323,11 @@ https://youtube.com/watch?v=VIDEO_ID 00:05:00           # From 5 minutes
 - Tracker configuration generation
 - Dependency verification
 
-## Usage Examples
+#### 11. `cvat_converter.py` - CVAT Xml creator
+**Purpose**: Rebuild COCO json into XML format for uploading annotations into CVAT
 
-### Basic Processing
-```bash
-python main.py --urls urls.txt
-```
-
-### High-Quality Dataset Generation
-```bash
-python main.py --urls urls.txt \
-  --yolo-model yolov8x.pt \
-  --sam-model sam2.1_l.pt \
-  --confidence 0.7 \
-  --output-dir /data/my_dataset
-```
-
-### Fast Prototyping (No Segmentation)
-```bash
-python main.py --urls urls.txt \
-  --yolo-model yolov8n.pt \
-  --no-sam \
-  --confidence 0.6
-```
-
-### Processing Existing Videos
-```bash
-python main.py --urls urls.txt \
-  --skip-download \
-  --confidence 0.8 \
-  --static-cars
-```
-
-### Custom Tracker Configuration
-```bash
-python main.py --urls urls.txt \
-  --tracker bytetrack.yaml \
-  --confidence 0.6
-```
+#### 12. `fifty_one_visualizing.py` - FiftyOne launher
+**Purpose**: Parse all files in data, create new dataset and use labels_final as annotation file
 
 ## Output Structure
 
@@ -392,35 +384,103 @@ python visualization.py -f VIDEO_ID_annotations.json \
 - `--no-labels`: Hide class labels
 - `--no-confidence`: Hide confidence scores
 
+## CVAT Export
+Convert your COCO annotations to CVAT format for advanced annotation editing and review.
+
+### Advanced Keyframing Options
+```bash
+# Smart FPS-based keyframes (every 2 seconds)
+python cvat_converter.py --all --keyframe-mode fps --fps-multiplier 2.0
+
+# Fixed interval keyframes (every 50 frames)
+python cvat_converter.py --all --keyframe-mode interval --keyframe-interval 50
+
+# Auto-adaptive keyframes
+python cvat_converter.py --all --keyframe-mode auto
+```
+
+### Keyframe Modes
+- `fps`: Keyframes every N seconds based on video FPS
+- `interval`: Fixed frame intervals  
+- `auto`: Intelligent adaptive keyframing
+
 ## Model Management
 
 ### Download All Models
 ```bash
-python src/download_models.py
+python download_models.py
 ```
 
 ### Available Models
 
 **YOLO Detection Models**:
-- `yolov8n.pt`: Nano (fastest)
-- `yolov8s.pt`: Small 
-- `yolov8m.pt`: Medium
-- `yolov8l.pt`: Large
-- `yolov8x.pt`: Extra Large (most accurate)
-- `Your custom yolo model`
+- `yolov8` series
 
 **SAM Segmentation Models**:
-- `sam2.1_t.pt`: Tiny (fastest)
-- `sam2.1_s.pt`: Small
-- `sam2.1_b.pt`: Base
-- `sam2.1_l.pt`: Large (most accurate)
-- `mobile_sam.pt`: Mobile optimized
+- `sam2.1` series
+- `mobile_sam.pt`
 
 ### Custom Models
 Place custom models in appropriate directories:
 - YOLO: `models/yolo_det/your_model.pt`
 - SAM: `models/sam/your_model.pt`
 
+## Performance Comparison
+
+This comparison analyzes the performance of different YOLO and SAM model configurations on the same 3-second video (NBWd_5AZ79E) with 75 frames at 25 FPS.
+
+### Test Configurations
+
+| Configuration | YOLO Resolution | SAM Model | SAM Resolution | Input Video Resolution |
+|---------------|----------------|-----------|----------------|----------------------|
+| Config 1 | 640x640 | mobile_sam.pt | 640x640 | 640x360 |
+| Config 2 | 640x640 | sam2.1_l.pt | 640x640 | 640x360 |
+| Config 3 | 1024x1024 | mobile_sam.pt | 1024x1024 | 1920x1080 |
+| Config 4 | 1024x1024 | sam2.1_l.pt | 1024x1024 | 1920x1080 |
+
+### Performance Metrics
+
+#### Detection Accuracy
+
+| Metric | 640 + Mobile SAM | 640 + SAM2.1-L | 1024 + Mobile SAM | 1024 + SAM2.1-L |
+|--------|------------------|-----------------|-------------------|------------------|
+| **Total Detections** | 6,349 | 6,349 | 10,987 | 10,987 |
+| **Average Confidence** | 0.713 | 0.713 | 0.737 | 0.737 |
+| **People Detections** | 2,270 | 2,270 | 5,391 | 5,391 |
+| **Car Detections** | 4,079 | 4,079 | 5,596 | 5,596 |
+| **People Tracks** | 73 | 73 | 158 | 158 |
+| **Car Tracks** | 73 | 73 | 98 | 98 |
+| **Total Tracks** | 146 | 146 | 256 | 256 |
+
+#### Processing Performance
+
+| Metric | 640 + Mobile SAM | 640 + SAM2.1-L | 1024 + Mobile SAM | 1024 + SAM2.1-L |
+|--------|------------------|-----------------|-------------------|------------------|
+| **Inference Speed** | 5.02 FPS | 4.10 FPS | 1.03 FPS | 0.85 FPS |
+| **Processing Time** | 14s | 18s | 1m 12s | 1m 28s |
+| **Speed vs Real-time** | 5.02/25 = 20% | 4.10/25 = 16% | 1.03/25 = 4% | 0.85/25 = 3% |
+
+| 640 + Mobile SAM | 640 + SAM2.1-L |
+|------------------|----------------|
+| <img width="760" alt="640_yolol_mobile_640" src="https://github.com/user-attachments/assets/11590288-9b30-4d85-bd1e-6b1bdb729993" /> | <img width="760" alt="640_yolol_saml_640" src="https://github.com/user-attachments/assets/c0aef4d5-e8de-4b88-976e-06740c5af50a" /> |
+
+| 1024 + Mobile SAM | 1024 + SAM2.1-L |
+|-------------------|-----------------|
+| <img width="760" alt="1080_yolol_mobile_1024" src="https://github.com/user-attachments/assets/4237192f-560f-4342-ab2a-2347f585a209" /> | <img width="760" alt="1080_yolol_saml_1024" src="https://github.com/user-attachments/assets/35e07773-8077-4989-a471-70468d0a30e6" /> |
+
+
+###
+
+## Configuration Details
+
+All tests used consistent parameters:
+- YOLO Confidence: 0.4
+- YOLO IoU: 0.6  
+- SAM Confidence: 0.4
+- SAM IoU: 0.5
+- Tracking: BotSORT with ReID enabled
+- Device: CUDA A100 gpu
+- Half Precision: Disabled
 
 ## Acknowledgments
 
