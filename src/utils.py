@@ -166,23 +166,6 @@ def get_video_info(video_path: Path) -> Dict[str, Any]:
     return info
 
 
-def format_duration(seconds: float) -> str:
-    """Convert seconds to human-readable format (HH:MM:SS or MM:SS or SS)."""
-    if seconds <= 0:
-        return "0s"
-
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-
-    if hours > 0:
-        return f"{hours}h {minutes}m {secs}s"
-    elif minutes > 0:
-        return f"{minutes}m {secs}s"
-    else:
-        return f"{secs}s"
-
-
 def get_file_size_mb(file_path: Path) -> float:
     """Get file size in megabytes with error handling."""
     try:

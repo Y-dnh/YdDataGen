@@ -126,19 +126,27 @@ class ConsolidatedReportGenerator:
         <b>Device:</b> {CONFIG.device}<br/>
         <b>Inference Yolo Resolution:</b> {CONFIG.yolo_imgsz}<br/>
         <b>Inference SAM Resolution:</b> {CONFIG.sam_imgsz}<br/>
-        <b>Half Precision:</b> {'Enabled' if CONFIG.half_precision else 'Disabled'}<br/>
+        <b>Half Precision:</b> {'Enabled' if CONFIG.half_precision else 'Disabled'}<br/><br/>
 
         <b>Detection Parameters:</b><br/>
         • YOLO Confidence: {CONFIG.yolo_confidence}<br/>
         • YOLO IoU: {CONFIG.yolo_iou}<br/>
+        • YOLO rect: {CONFIG.yolo_rect}<br/>
+        • YOLO agnostic_nms: {CONFIG.yolo_agnostic_nms}<br/>
+        • YOLO augment: {CONFIG.yolo_augment}<br/>
         • Max Detections: {CONFIG.yolo_max_det}<br/>
         • Min Tracking Confidence: {CONFIG.min_confidence_for_tracking}<br/><br/>
 
         <b>Tracking Settings:</b><br/>
-        • Tracker Type: {CONFIG.tracker_type}<br/>
         • Track High Thresh: {CONFIG.track_high_thresh}<br/>
         • Track Low Thresh: {CONFIG.track_low_thresh}<br/>
-        • Match Thresh: {CONFIG.match_thresh}<br/><br/>
+        • Match Thresh: {CONFIG.match_thresh}<br/>
+        • Track Buffer: {CONFIG.track_buffer}<br/>
+        • Fuse Score: {CONFIG.fuse_score}<br/>
+        • GMC Method: {CONFIG.gmc_method}<br/>
+        • Proximity Thresh: {CONFIG.proximity_thresh}<br/>
+        • Appearance Thresh: {CONFIG.appearance_thresh}<br/>
+        • ReId: {CONFIG.with_reid}<br/><br/>
 
         <b>SAM Segmentation:</b><br/>
         • SAM Enabled: {'Yes' if CONFIG.sam_enabled else 'No'}<br/>
@@ -147,9 +155,10 @@ class ConsolidatedReportGenerator:
         # Conditionally add SAM-specific parameters
         if CONFIG.sam_enabled:
             config_text += f"""
-        • SAM Model: {CONFIG.sam_model_path}<br/>
         • SAM Confidence: {CONFIG.sam_confidence}<br/>
         • SAM IoU: {CONFIG.sam_iou}<br/>
+        • SAM Confidence: {CONFIG.sam_confidence}<br/>
+        • Retina Mask: {CONFIG.sam_retina_masks}<br/><br/>
             """
         else:
             config_text += "<br/>"
@@ -163,6 +172,8 @@ class ConsolidatedReportGenerator:
         if CONFIG.static_car_enabled:
             config_text += f"""
         • Movement Threshold: {CONFIG.movement_threshold} pixels<br/>
+        • Min Static Duration: {CONFIG.min_static_duration} pixels<br/>
+        • Static Check Interval: {CONFIG.static_check_interval} pixels<br/><br/>
             """
         else:
             config_text += "<br/>"
@@ -170,10 +181,9 @@ class ConsolidatedReportGenerator:
         config_text += f"""
         <b>Polygon Settings:</b><br/>
         • Max Points: {CONFIG.max_points}<br/>
-        • Simplify Tolerance: {CONFIG.simplify_tolerance}<br/>
         • Min Area: {CONFIG.min_area}<br/>
-        • Smoothing: {'Enabled' if CONFIG.smoothing else 'Disabled'}<br/>
         • Fill Holes: {'Enabled' if CONFIG.fill_holes else 'Disabled'}<br/>
+        • Approximation Method: {CONFIG.approximation_method}<br/><br/>
         """
 
         content.append(Paragraph(config_text, self.styles['BodyText']))

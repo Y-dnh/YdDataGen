@@ -46,8 +46,8 @@ class Config:
         # Custom classes mapping
         self.custom_classes = {
             0: "person",
-            2: "pet",
-            1: "car"
+            1: "pet",
+            2: "car"
         }
 
         # Logging settings
@@ -88,7 +88,7 @@ class Config:
         self.yolo_model_path = "yolov8n.pt"
         self.yolo_confidence = 0.5
         self.yolo_iou = 0.5
-        self.yolo_rect = True
+        self.yolo_rect = False
         self.yolo_half = False
         self.yolo_max_det = 300
         self.yolo_classes = None  # None for all classes, or list like [0, 2] for specific
@@ -105,14 +105,12 @@ class Config:
         self.sam_retina_masks = True
         self.sam_half = False
         self.sam_imgsz = 640
-        self.sam_add_center_point: bool = True
 
         # Segmentation polygon settings
-        self.max_points = 100
-        self.simplify_tolerance = 0.1
-        self.min_area = 50.0
-        self.smoothing = True
-        self.fill_holes = True
+        self.max_points = 5
+        self.min_area = 100.0
+        self.fill_holes = False
+        self.approximation_method = "douglas_peucker"
 
         # Static car detection
         self.static_car_enabled = True

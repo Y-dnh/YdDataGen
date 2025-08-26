@@ -23,12 +23,9 @@ class InferenceEngine:
 
     def __init__(self):
         self.tracks = {}  # Track ID -> metadata for mobility analysis
-        self.annotation_id = 1
-        self.image_id = 1
 
         self.max_points = CONFIG.max_points
         # Douglas-Peucker approximation tolerance for polygon simplification
-        self.tolerance = CONFIG.simplify_tolerance
         self.min_area = CONFIG.min_area
 
         self._sam_params = None
@@ -36,10 +33,6 @@ class InferenceEngine:
             self._sam_params = CONFIG.get_sam_params()
 
         self._yolo_params = CONFIG.get_yolo_params()
-
-        if CONFIG.fill_holes:
-            # Kernel size (3x3) for morphological closing to fill small holes in masks
-            self._morphology_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
         self._load_models()
 
@@ -218,13 +211,6 @@ class InferenceEngine:
 
                 class_name = CONFIG.custom_classes.get(cls_id, f'class_{cls_id}')
 
-                # Extract YOLO segmentation mask if available
-                mask = None
-                if hasattr(yolo_result, 'masks') and yolo_result.masks is not None:
-                    if i < len(yolo_result.masks.data):
-                        mask_data = yolo_result.masks.data[i].cpu().numpy()
-                        mask = self._approximate_segmentation(mask_data)
-
                 detection = {
                     "track_id": track_id,
                     "class_id": cls_id,
@@ -232,7 +218,7 @@ class InferenceEngine:
                     "confidence": float(conf),
                     "bbox": [float(x1), float(y1), float(x2 - x1), float(y2 - y1)],
                     # COCO format: [x, y, width, height]
-                    "segmentation": mask,
+                    "segmentation": None,
                     "area": float((x2 - x1) * (y2 - y1)),
                     "sam_applied": False
                 }
@@ -279,8 +265,6 @@ class InferenceEngine:
 
             # Prepare batch inputs for SAM
             all_boxes = []
-            all_points = []
-            all_point_labels = []
             detection_indices = []
 
             for det_idx, detection in enumerate(frame_annotation["detections"]):
@@ -291,22 +275,10 @@ class InferenceEngine:
                 all_boxes.append(box_prompt)
                 detection_indices.append(det_idx)
 
-                # Add center point prompts for cars to improve segmentation
-                if CONFIG.sam_add_center_point and detection["class_name"] == "car":
-                    center_x = x + w / 2
-                    center_y = y + h / 2
-                    all_points.append([center_x, center_y])
-                    all_point_labels.append(1)  # Positive point
-
-            points_to_predict = np.array(all_points) if all_points else None
-            labels_to_predict = np.array(all_point_labels) if all_point_labels else None
-
             try:
                 sam_results = self.sam_model.predict(
                     source=image,
                     bboxes=all_boxes,
-                    points=points_to_predict,
-                    labels=labels_to_predict,
                     **self._sam_params
                 )
 
@@ -318,6 +290,7 @@ class InferenceEngine:
                             try:
                                 mask_data = masks_data[i].cpu().numpy()
                                 segmentation = self._approximate_segmentation(mask_data)
+
 
                                 if segmentation:
                                     detection = frame_annotation["detections"][det_idx]
@@ -331,51 +304,20 @@ class InferenceEngine:
 
             except Exception as e:
                 logger.debug(f"Batch SAM failed: {e}")
-                return self._fallback_individual_sam(image, frame_annotation)
+                return None
 
         except Exception as e:
             logger.warning(f"SAM segmentation failed for {frame_file.name}: {e}")
 
         return frame_annotation
 
-    def _fallback_individual_sam(self, image: np.ndarray, frame_annotation: Dict) -> Dict:
-        """Fallback to individual SAM processing when batch processing fails."""
-        logger.debug("Using individual SAM processing as fallback")
-
-        for det_idx, detection in enumerate(frame_annotation["detections"]):
-            bbox = detection["bbox"]
-            x, y, w, h = bbox
-            box_prompt = [x, y, x + w, y + h]
-
-            try:
-                sam_results = self.sam_model.predict(
-                    source=image,
-                    bboxes=[box_prompt],
-                    **self._sam_params
-                )
-
-                if (sam_results and hasattr(sam_results[0], 'masks') and
-                        sam_results[0].masks is not None and len(sam_results[0].masks.data) > 0):
-
-                    mask_data = sam_results[0].masks.data[0].cpu().numpy()
-                    segmentation = self._approximate_segmentation(mask_data)
-
-                    if segmentation:
-                        frame_annotation["detections"][det_idx]["segmentation"] = segmentation
-                        frame_annotation["detections"][det_idx]["area"] = float(np.sum(mask_data > 0.5))
-                        frame_annotation["detections"][det_idx]["sam_applied"] = True
-
-            except Exception as e:
-                logger.debug(f"Individual SAM failed for detection {det_idx}: {e}")
-                continue
-
-        return frame_annotation
 
     def _approximate_segmentation(self, mask: np.ndarray) -> Optional[List[List[float]]]:
-        """Convert binary mask to polygon using contour approximation and simplification.
+        """Convert binary mask to polygon with guaranteed point limit.
 
-        Applies Douglas-Peucker algorithm and optional smoothing to create
-        efficient polygon representations suitable for COCO format.
+        Uses a two-stage approach:
+        1. Douglas-Peucker approximation with binary search for optimal epsilon
+        2. Uniform sampling fallback if needed
         """
         if mask is None or mask.size == 0:
             return None
@@ -388,84 +330,118 @@ class InferenceEngine:
             # Ensure binary mask
             if mask.dtype != np.uint8:
                 mask = (mask > 0.5).astype(np.uint8)
-            elif not np.all((mask == 0) | (mask == 1)):
+            elif mask.max() > 1:
                 mask = (mask > 0).astype(np.uint8)
 
-            # Fill small holes using morphological closing
+            # Optional morphological closing for hole filling
             if CONFIG.fill_holes:
-                mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, self._morphology_kernel)
+                # Adaptive kernel size based on object size
+                mask_area = np.sum(mask)
+                kernel_size = max(3, min(9, int(np.sqrt(mask_area) / 30)))
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+                mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
+            # Find contours with simple approximation for efficiency
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             if not contours:
                 return None
 
-            # Find largest contour (main object)
-            if len(contours) == 1:
-                largest_contour = contours[0]
-                area = cv2.contourArea(largest_contour)
-            else:
-                areas = [cv2.contourArea(c) for c in contours]
-                max_idx = np.argmax(areas)
-                largest_contour = contours[max_idx]
-                area = areas[max_idx]
+            # Get largest contour
+            largest_contour = max(contours, key=cv2.contourArea)
+            area = cv2.contourArea(largest_contour)
 
             if area < self.min_area:
                 return None
 
-            # Apply Douglas-Peucker approximation
-            perimeter = cv2.arcLength(largest_contour, True)
-            epsilon = max(self.tolerance, perimeter * 0.002)  # Minimum 0.2% of perimeter
+            # Use binary search to find optimal epsilon for Douglas-Peucker
+            polygon = self._douglas_peucker_with_limit(largest_contour, self.max_points)
 
-            approx = cv2.approxPolyDP(largest_contour, epsilon, True)
-            polygon = approx.flatten().tolist()
-
-            # Reduce points if still too many
+            # Fallback to uniform sampling if Douglas-Peucker still produces too many points
             if len(polygon) > self.max_points * 2:
-                polygon = self._reduce_points_optimized(polygon, self.max_points)
+                polygon = self._uniform_sample_polygon_fixed(polygon, self.max_points)
 
-            # Apply smoothing for medium-sized polygons (8-100 points)
-            if CONFIG.smoothing and 8 <= len(polygon) <= 100:
-                polygon = self._smooth_polygon_optimized(polygon)
-
-            return [polygon] if len(polygon) >= 6 else None  # Minimum 3 points for valid polygon
+            return [polygon] if len(polygon) >= 6 else None
 
         except Exception as e:
             logger.warning(f"Segmentation approximation failed: {e}")
             return None
 
-    def _reduce_points_optimized(self, polygon: List[float], max_points: int) -> List[float]:
-        """Reduce polygon points using uniform sampling when Douglas-Peucker isn't sufficient."""
+
+    def _douglas_peucker_with_limit(self, contour: np.ndarray, max_points: int) -> List[float]:
+        """Apply Douglas-Peucker with binary search to find optimal epsilon."""
+
+        # Calculate perimeter-based epsilon bounds
+        perimeter = cv2.arcLength(contour, True)
+
+        # Binary search bounds for epsilon
+        min_epsilon = 0.1
+        max_epsilon = perimeter * 0.1  # Up to 10% of perimeter
+
+        best_polygon = None
+
+        # Binary search for optimal epsilon
+        for _ in range(10):  # Max 10 iterations
+            epsilon = (min_epsilon + max_epsilon) / 2
+
+            approx = cv2.approxPolyDP(contour, epsilon, True)
+            num_points = len(approx)
+
+            if num_points <= max_points:
+                # Good approximation, try to reduce epsilon for better quality
+                best_polygon = approx.flatten().tolist()
+                max_epsilon = epsilon
+
+                if num_points >= max_points * 0.8:  # Close to target, stop
+                    break
+            else:
+                # Too many points, increase epsilon
+                min_epsilon = epsilon
+
+        # If binary search failed, use aggressive epsilon
+        if best_polygon is None:
+            epsilon = perimeter * 0.05
+            approx = cv2.approxPolyDP(contour, epsilon, True)
+            best_polygon = approx.flatten().tolist()
+
+        return best_polygon
+
+
+    def _uniform_sample_polygon_fixed(self, polygon: List[float], max_points: int) -> List[float]:
+        """Fixed uniform sampling that guarantees exact point count."""
         if len(polygon) <= max_points * 2:
             return polygon
 
+        # Convert to points array
         points = np.array([(polygon[i], polygon[i + 1]) for i in range(0, len(polygon), 2)])
 
-        n_points = len(points)
-        indices = np.linspace(0, n_points - 1, max_points, dtype=int)
-
-        reduced_points = points[indices]
-
-        return [coord for point in reduced_points for coord in point]
-
-    def _smooth_polygon_optimized(self, polygon: List[float]) -> List[float]:
-        """Apply moving average smoothing to polygon points to reduce noise."""
-        if len(polygon) < 8:
+        if len(points) <= max_points:
             return polygon
 
-        points = np.array([(polygon[i], polygon[i + 1]) for i in range(0, len(polygon), 2)])
-        smoothed = np.zeros_like(points)
+        # Simple uniform sampling by index
+        step = len(points) / max_points
+        indices = [int(i * step) for i in range(max_points)]
 
-        # Adaptive window size based on polygon complexity
-        window = min(3, max(1, len(points) // 6))
+        # Ensure we don't exceed array bounds and get exactly max_points
+        indices = list(set(indices))  # Remove duplicates
+        indices.sort()
 
-        for i in range(len(points)):
-            # Apply smoothing with boundary handling
-            start_idx = max(0, i - window // 2)
-            end_idx = min(len(points), i + window // 2 + 1)
+        # If we have fewer indices than max_points, fill with additional points
+        while len(indices) < max_points and len(indices) < len(points):
+            # Find largest gap and insert point there
+            gaps = [(indices[i + 1] - indices[i], i) for i in range(len(indices) - 1)]
+            if gaps:
+                _, gap_idx = max(gaps)
+                new_idx = (indices[gap_idx] + indices[gap_idx + 1]) // 2
+                if new_idx not in indices:
+                    indices.insert(gap_idx + 1, new_idx)
+                    indices.sort()
 
-            smoothed[i] = np.mean(points[start_idx:end_idx], axis=0)
+        # Take exactly max_points
+        indices = indices[:max_points]
 
-        return [coord for point in smoothed for coord in point]
+        sampled_points = points[indices]
+        return [coord for point in sampled_points for coord in point]
+
 
     def _update_car_mobility(self, track_id: int, bbox: List[float], frame_idx: int):
         """Track car movement by analyzing center point displacement over time."""
