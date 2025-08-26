@@ -30,7 +30,7 @@ YtDataGen is a comprehensive tool for generating computer vision datasets from Y
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.9+
 - CUDA-compatible GPU (recommended)
 - FFmpeg (for video processing)
 
@@ -54,7 +54,7 @@ Rewrite the config.py file with your own tracker parameters. If you want to cont
 
 ```bash
 # Download required models
-python src/download_models.py
+python download_models.py
 ```
 
 ## Quick Start
