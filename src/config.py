@@ -71,23 +71,23 @@ class Config:
         # Change parameters in tracker .yaml file if you want to run inference with custom parameters
         # Check https://docs.ultralytics.com/modes/track/#tracker-arguments for more details
         self.tracker_type = "botsort.yaml"  # or "bytetrack.yaml" or custom tracker name
-        self.track_high_thresh = 0.5
-        self.track_low_thresh = 0.1
+        self.track_high_thresh = 0.7
+        self.track_low_thresh = 0.05
         self.new_track_thresh = 0.5
-        self.track_buffer = 30
-        self.match_thresh = 0.8
+        self.track_buffer = 180
+        self.match_thresh = 0.95
         self.fuse_score = True
         # BoT-SORT settings
-        self.gmc_method = "sparseOptFlow"
+        self.gmc_method = "none"
         self.proximity_thresh = 0.5  # minimum IoU for valid match with ReID
-        self.appearance_thresh = 0.8  # minimum appearance similarity for ReID
+        self.appearance_thresh = 0.9  # minimum appearance similarity for ReID
         self.with_reid = True
         self.min_confidence_for_tracking = 0.5
 
         # YOLO Detection settings
         self.yolo_model_path = "yolov8n.pt"
-        self.yolo_confidence = 0.5
-        self.yolo_iou = 0.5
+        self.yolo_confidence = 0.35
+        self.yolo_iou = 0.6
         self.yolo_rect = False
         self.yolo_half = False
         self.yolo_max_det = 300

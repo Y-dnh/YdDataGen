@@ -140,6 +140,7 @@ class ConsolidatedReportGenerator:
         <b>Tracking Settings:</b><br/>
         • Track High Thresh: {CONFIG.track_high_thresh}<br/>
         • Track Low Thresh: {CONFIG.track_low_thresh}<br/>
+        • New Track Thresh: {CONFIG.new_track_thresh}<br/>
         • Match Thresh: {CONFIG.match_thresh}<br/>
         • Track Buffer: {CONFIG.track_buffer}<br/>
         • Fuse Score: {CONFIG.fuse_score}<br/>
@@ -213,9 +214,9 @@ class ConsolidatedReportGenerator:
         confidence_sum = 0
 
         # Use sets to track unique tracks across all videos
-        total_people_tracks = set()
-        total_car_tracks = set()
-        total_pet_tracks = set()
+        total_people_tracks = 0
+        total_car_tracks = 0
+        total_pet_tracks = 0
         total_processing_time = 0
 
         # Aggregate statistics from all processed videos
@@ -243,12 +244,12 @@ class ConsolidatedReportGenerator:
             # Merge unique track IDs across all videos
             unique_tracks = statistics.get("unique_tracks", {})
             if isinstance(unique_tracks, dict):
-                total_people_tracks.update(unique_tracks.get("person", set()))
-                total_car_tracks.update(unique_tracks.get("car", set()))
-                total_pet_tracks.update(unique_tracks.get("pet", set()))
+                total_people_tracks += len(unique_tracks.get("person", set()))
+                total_car_tracks += len(unique_tracks.get("car", set()))
+                total_pet_tracks += len(unique_tracks.get("pet", set()))
 
         # Calculate derived metrics
-        total_tracks = len(total_people_tracks) + len(total_car_tracks) + len(total_pet_tracks)
+        total_tracks = total_people_tracks + total_car_tracks + total_pet_tracks
         avg_confidence = confidence_sum / total_detections if total_detections > 0 else 0
         avg_duration = total_duration / total_videos if total_videos > 0 else 0
         avg_processing_fps = (total_frames / total_processing_time) if total_processing_time > 0 else 0
@@ -262,9 +263,9 @@ class ConsolidatedReportGenerator:
         <b>Average Confidence:</b> {avg_confidence:.3f}<br/><br/>
 
         <b>Object Counts:</b><br/>
-        - People (detections: {total_people:,}, tracks: {len(total_people_tracks):,})<br/>
-        - Cars (detections: {total_cars:,}, tracks: {len(total_car_tracks):,})<br/>
-        - Pets (detections: {total_pets:,}, tracks: {len(total_pet_tracks):,})<br/>
+        - People (detections: {total_people:,}, tracks: {total_people_tracks:,})<br/>
+        - Cars (detections: {total_cars:,}, tracks: {total_car_tracks:,})<br/>
+        - Pets (detections: {total_pets:,}, tracks: {total_pet_tracks:,})<br/>
         - Static Cars: {total_static_cars:,}<br/>
         - <b>Total Tracks: {total_tracks:,}</b><br/><br/>
 
