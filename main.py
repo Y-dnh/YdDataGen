@@ -283,13 +283,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # # Development/testing configuration - remove in production
-    # sys.argv = [
-    #     "main.py",
-    #     "--urls", "urls.txt",
-    #     "--yolo-model", "yolo8n_pt_512_coco_skiped_crowd.pt",
-    #     "--no-sam",
-    #     # "--sam-model", "mobile_sam.pt",
-    #     "--tracker", "botsort.yaml",
-    # ]
     sys.exit(main())
