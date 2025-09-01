@@ -119,7 +119,8 @@ def get_video_info(video_path: Path) -> Dict[str, Any]:
         "frames": 0,
         "width": CONFIG.yolo_imgsz,
         "height": CONFIG.yolo_imgsz,
-        "resolution": f"{CONFIG.yolo_imgsz}x{CONFIG.yolo_imgsz}"
+        "resolution": f"{CONFIG.yolo_imgsz}x{CONFIG.yolo_imgsz}",
+        "frames_dir": f"{CONFIG.paths.data_dir / video_path.stem}"
     }
 
     try:
