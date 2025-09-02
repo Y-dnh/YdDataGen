@@ -205,6 +205,7 @@ def main():
         else:
             logger.info("Step 2/4: Skipped frame extraction")
 
+
         # Gather comprehensive video metadata for report generation
         logger.info("Gathering detailed video metadata...")
         for video_id, info in video_info_dict.items():
@@ -283,4 +284,15 @@ def main():
 
 
 if __name__ == "__main__":
+    # Development/testing configuration - remove in production
+    sys.argv = [
+        "main.py",
+        "--urls", "urls.txt",
+        "--yolo-model", "yolo8n_pt_512_coco_skiped_crowd.pt",
+        # "--no-sam",
+        "--sam-model", "mobile_sagm.pt",
+        "--tracker", "botsort.yaml",
+        '--skip-download',
+        # "--skip-frames",
+    ]
     sys.exit(main())

@@ -1,13 +1,14 @@
 """
-FiftyOne COCO Dataset Loader
+FiftyOne COCO Dataset Loader with Track ID Support
 
 This script loads COCO format annotations and images into FiftyOne for visualization.
-Supports both bounding box detections and polygon segmentation masks.
+Supports both bounding box detections and polygon segmentation masks with track IDs.
 
 Features:
 - Loads images from multiple subdirectories
 - Converts COCO bounding boxes to FiftyOne format
 - Handles polygon segmentations as separate polylines
+- Supports track_id for object tracking across frames
 - Progress tracking with tqdm
 - Safe error handling and validation
 """
@@ -59,12 +60,19 @@ def load_coco_to_fiftyone(data_path: str, labels_path: str, dataset_name: str = 
     # Maps image_id -> list of annotations for that image
     print("Building annotation index...")
     annotations_by_image = {}
+    track_ids = set()  # Keep track of all unique track IDs
+
     for ann in coco_data["annotations"]:
         img_id = ann["image_id"]
         if img_id not in annotations_by_image:
             annotations_by_image[img_id] = []
         annotations_by_image[img_id].append(ann)
 
+        # Collect track IDs if present
+        if "track_id" in ann:
+            track_ids.add(ann["track_id"])
+
+    print(f"Found {len(track_ids)} unique track IDs" if track_ids else "No track IDs found in annotations")
     print(f"Processing {len(coco_data['images'])} images...")
 
     # Process each image in the dataset
@@ -100,6 +108,12 @@ def load_coco_to_fiftyone(data_path: str, labels_path: str, dataset_name: str = 
         polylines = []  # For segmentation polygons
         img_id = img_info["id"]
 
+        # Add frame number or timestamp if available in image info
+        if "frame_id" in img_info:
+            sample["frame_id"] = img_info["frame_id"]
+        if "timestamp" in img_info:
+            sample["timestamp"] = img_info["timestamp"]
+
         # Process annotations for this image
         if img_id in annotations_by_image:
             for ann in annotations_by_image[img_id]:
@@ -120,12 +134,24 @@ def load_coco_to_fiftyone(data_path: str, labels_path: str, dataset_name: str = 
                     print(f"Invalid bbox for {file_name}: {[norm_x, norm_y, norm_w, norm_h]}")
                     continue
 
-                # Create detection object
-                detection = fo.Detection(
-                    label=label,
-                    bounding_box=[norm_x, norm_y, norm_w, norm_h],
-                    confidence=ann.get("score", 1.0)  # Use confidence if available
-                )
+                # Create detection object with track_id support
+                detection_kwargs = {
+                    "label": label,
+                    "bounding_box": [norm_x, norm_y, norm_w, norm_h],
+                    "confidence": ann.get("score", 1.0)  # Use confidence if available
+                }
+
+                # Add track_id if present
+                if "track_id" in ann:
+                    detection_kwargs["track_id"] = ann["track_id"]
+
+                # Add any additional annotation attributes
+                if "area" in ann:
+                    detection_kwargs["area"] = ann["area"]
+                if "iscrowd" in ann:
+                    detection_kwargs["iscrowd"] = ann["iscrowd"]
+
+                detection = fo.Detection(**detection_kwargs)
 
                 # Process segmentation polygons
                 if "segmentation" in ann and ann["segmentation"]:
@@ -149,12 +175,18 @@ def load_coco_to_fiftyone(data_path: str, labels_path: str, dataset_name: str = 
 
                                     # Create polyline if we have enough points
                                     if len(normalized_points) >= 3:
-                                        polyline = fo.Polyline(
-                                            label=label,
-                                            points=[normalized_points],  # List of points as one contour
-                                            closed=True,  # Close the polygon
-                                            filled=True  # Fill the polygon
-                                        )
+                                        polyline_kwargs = {
+                                            "label": label,
+                                            "points": [normalized_points],  # List of points as one contour
+                                            "closed": True,  # Close the polygon
+                                            "filled": True  # Fill the polygon
+                                        }
+
+                                        # Add track_id to polyline if present
+                                        if "track_id" in ann:
+                                            polyline_kwargs["track_id"] = ann["track_id"]
+
+                                        polyline = fo.Polyline(**polyline_kwargs)
                                         polylines.append(polyline)
 
                     except Exception as e:
@@ -188,6 +220,8 @@ def print_dataset_stats(dataset: fo.Dataset):
     # Count samples with different types of annotations
     detections_count = 0
     segmentations_count = 0
+    tracked_detections_count = 0
+    unique_track_ids = set()
 
     print("Computing dataset statistics...")
     for sample in tqdm(dataset, desc="Counting annotations"):
@@ -195,17 +229,77 @@ def print_dataset_stats(dataset: fo.Dataset):
         if hasattr(sample, 'detections') and sample.detections and len(sample.detections.detections) > 0:
             detections_count += 1
 
+            # Count detections with track IDs
+            for detection in sample.detections.detections:
+                if hasattr(detection, 'track_id') and detection.track_id is not None:
+                    tracked_detections_count += 1
+                    unique_track_ids.add(detection.track_id)
+
         # Check for segmentation annotations
         if hasattr(sample, 'segmentations') and sample.segmentations and len(sample.segmentations.polylines) > 0:
             segmentations_count += 1
 
     print(f"Samples with detections: {detections_count}")
     print(f"Samples with segmentations: {segmentations_count}")
+    print(f"Samples with tracked detections: {tracked_detections_count}")
+    print(f"Unique track IDs found: {len(unique_track_ids)}")
 
     # Compute and display metadata
     print("\nComputing metadata...")
     dataset.compute_metadata()
     print(dataset.stats())
+
+
+def analyze_tracks(dataset: fo.Dataset):
+    """
+    Analyze tracking information in the dataset.
+
+    Args:
+        dataset (fo.Dataset): FiftyOne dataset to analyze
+    """
+    print("\n=== TRACK ANALYSIS ===")
+
+    # Dictionary to store track information: track_id -> list of frame info
+    tracks = {}
+
+    for sample in dataset:
+        if hasattr(sample, 'detections') and sample.detections:
+            frame_info = {
+                'filepath': sample.filepath,
+                'frame_id': getattr(sample, 'frame_id', None),
+                'timestamp': getattr(sample, 'timestamp', None)
+            }
+
+            for detection in sample.detections.detections:
+                if hasattr(detection, 'track_id') and detection.track_id is not None:
+                    track_id = detection.track_id
+                    if track_id not in tracks:
+                        tracks[track_id] = []
+
+                    track_info = {
+                        'frame_info': frame_info,
+                        'label': detection.label,
+                        'confidence': detection.confidence,
+                        'bbox': detection.bounding_box
+                    }
+                    tracks[track_id].append(track_info)
+
+    if tracks:
+        print(f"Found {len(tracks)} unique tracks")
+
+        # Analyze track lengths
+        track_lengths = [len(track_frames) for track_frames in tracks.values()]
+        print(f"Average track length: {np.mean(track_lengths):.2f} frames")
+        print(f"Longest track: {max(track_lengths)} frames")
+        print(f"Shortest track: {min(track_lengths)} frames")
+
+        # Show some example tracks
+        print("\nExample tracks:")
+        for track_id, track_frames in list(tracks.items())[:5]:
+            labels = set(frame['label'] for frame in track_frames)
+            print(f"Track {track_id}: {len(track_frames)} frames, labels: {labels}")
+    else:
+        print("No tracks found in dataset")
 
 
 def main():
@@ -214,8 +308,8 @@ def main():
     """
     # Configuration
     DATA_PATH = "C:/YtDataGen/dataset/data"
-    LABELS_PATH = "C:/YtDataGen/dataset/labels_final.json"
-    DATASET_NAME = "merged_dataset"
+    LABELS_PATH = "C:/YtDataGen/dataset/annotations_per_videos/v4vO49ekCmg_annotations.json"
+    DATASET_NAME = "merged_dataset_with_tracks"
     PORT = 5151
 
     try:
@@ -224,6 +318,9 @@ def main():
 
         # Print statistics
         print_dataset_stats(dataset)
+
+        # Analyze tracks
+        analyze_tracks(dataset)
 
         # Launch FiftyOne app
         print(f"\nLaunching FiftyOne app on port {PORT}...")
