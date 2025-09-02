@@ -45,9 +45,101 @@ class Config:
 
         # Custom classes mapping
         self.custom_classes = {
-            0: "person",
-            1: "pet",
-            2: "car"
+            0: "a10",
+            1: "a400m",
+            2: "ag600",
+            3: "ah64",
+            4: "akinci",
+            5: "av8b",
+            6: "an124",
+            7: "an22",
+            8: "an225",
+            9: "an72",
+            10: "b1",
+            11: "b2",
+            12: "b21",
+            13: "b52",
+            14: "be200",
+            15: "c1",
+            16: "c130",
+            17: "c17",
+            18: "c2",
+            19: "c390",
+            20: "c5",
+            21: "ch47",
+            22: "ch53",
+            23: "cl415",
+            24: "e2",
+            25: "e7",
+            26: "ef2000",
+            27: "emb314",
+            28: "f117",
+            29: "f14",
+            30: "f15",
+            31: "f16",
+            32: "f18",
+            33: "f2",
+            34: "f22",
+            35: "f35",
+            36: "f4",
+            37: "fck1",
+            38: "h6",
+            39: "il76",
+            40: "j10",
+            41: "j20",
+            42: "j35",
+            43: "j36",
+            44: "j50",
+            45: "jas39",
+            46: "jf17",
+            47: "jh7",
+            48: "kaan",
+            49: "kc135",
+            50: "kf21",
+            51: "kj600",
+            52: "ka27",
+            53: "ka52",
+            54: "mq25",
+            55: "mq9",
+            56: "mi24",
+            57: "mi26",
+            58: "mi28",
+            59: "mi8",
+            60: "mig29",
+            61: "mig31",
+            62: "mirage2000",
+            63: "p3",
+            64: "rq4",
+            65: "rafale",
+            66: "sr71",
+            67: "su24",
+            68: "su25",
+            69: "su34",
+            70: "su47",
+            71: "su57",
+            72: "tb001",
+            73: "tb2",
+            74: "tejas",
+            75: "tornado",
+            76: "tu160",
+            77: "tu22m",
+            78: "tu95",
+            79: "u2",
+            80: "uh60",
+            81: "us2",
+            82: "v22",
+            83: "v280",
+            84: "vulcan",
+            85: "wz10",
+            86: "wz7",
+            87: "wz9",
+            88: "x29",
+            89: "x32",
+            90: "xb70",
+            91: "y20",
+            92: "yf23",
+            93: "z10",
+            94: "z19",
         }
 
         # Logging settings
@@ -112,11 +204,11 @@ class Config:
         self.fill_holes = False
         self.approximation_method = "douglas_peucker"
 
-        # Static car detection
-        self.static_car_enabled = True
-        self.movement_threshold = 100.0  # pixels - if any movement > this, car is not static
+        # Static object detection (renamed from static_car_enabled for generalization)
+        self.static_car_enabled = True  # Keep original name for backward compatibility
+        self.movement_threshold = 100.0  # pixels - if any movement > this, object is not static
         self.min_static_duration = 300  # minimum frames to consider truly static
-        self.static_check_interval  = 50
+        self.static_check_interval = 50
 
         # CVAT conversion settings
         self.cvat_enabled = True

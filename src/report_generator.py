@@ -191,6 +191,7 @@ class ConsolidatedReportGenerator:
         content.append(Spacer(1, 0.6 * inch))
         return content
 
+
     def _create_dataset_overview(self, all_video_results: Dict, video_info_dict: Dict = None) -> List:
         """
         Generate comprehensive dataset-level statistics by aggregating all video results.
@@ -206,17 +207,16 @@ class ConsolidatedReportGenerator:
         total_videos = len(all_video_results)
         total_duration = 0
         total_frames = 0
-        total_people = 0
-        total_cars = 0
-        total_pets = 0
-        total_static_cars = 0
         total_detections = 0
         confidence_sum = 0
 
-        # Use sets to track unique tracks across all videos
-        total_people_tracks = 0
-        total_car_tracks = 0
-        total_pet_tracks = 0
+        # Dynamic class counters based on CONFIG.custom_classes
+        class_counters = {class_name: 0 for class_name in CONFIG.custom_classes.values()}
+        track_counters = {class_name: 0 for class_name in CONFIG.custom_classes.values()}
+        static_counters = {}
+        if CONFIG.static_car_enabled:
+            static_counters = {class_name: 0 for class_name in CONFIG.custom_classes.values()}
+
         total_processing_time = 0
 
         # Aggregate statistics from all processed videos
@@ -231,29 +231,34 @@ class ConsolidatedReportGenerator:
 
             total_duration += video_info.get("duration", 0)
             total_frames += statistics.get("total_frames", 0)
-            total_people += statistics.get("people_count", 0)
-            total_cars += statistics.get("cars_count", 0)
-            total_pets += statistics.get("pets_count", 0)
-            total_static_cars += statistics.get("static_cars_count", 0)
             total_detections += statistics.get("total_detections", 0)
 
             # Weight confidence by detection count for accurate average
             confidence_sum += statistics.get("avg_confidence", 0) * statistics.get("total_detections", 0)
             total_processing_time += statistics.get("processing_time", 0)
 
+            # Aggregate class-specific counts
+            for class_name in CONFIG.custom_classes.values():
+                class_key = f"{class_name}_count"
+                static_key = f"static_{class_name}_count"
+
+                class_counters[class_name] += statistics.get(class_key, 0)
+                if CONFIG.static_car_enabled:
+                    static_counters[class_name] += statistics.get(static_key, 0)
+
             # Merge unique track IDs across all videos
             unique_tracks = statistics.get("unique_tracks", {})
             if isinstance(unique_tracks, dict):
-                total_people_tracks += len(unique_tracks.get("person", set()))
-                total_car_tracks += len(unique_tracks.get("car", set()))
-                total_pet_tracks += len(unique_tracks.get("pet", set()))
+                for class_name in CONFIG.custom_classes.values():
+                    track_counters[class_name] += len(unique_tracks.get(class_name, set()))
 
         # Calculate derived metrics
-        total_tracks = total_people_tracks + total_car_tracks + total_pet_tracks
+        total_tracks = sum(track_counters.values())
         avg_confidence = confidence_sum / total_detections if total_detections > 0 else 0
         avg_duration = total_duration / total_videos if total_videos > 0 else 0
         avg_processing_fps = (total_frames / total_processing_time) if total_processing_time > 0 else 0
 
+        # Build dynamic overview text
         overview_text = f"""
         <b>Total Videos:</b> {total_videos}<br/><br/>
         <b>Total Duration:</b> {self._format_duration(total_duration)} ({total_duration:.1f} seconds)<br/><br/>
@@ -263,10 +268,31 @@ class ConsolidatedReportGenerator:
         <b>Average Confidence:</b> {avg_confidence:.3f}<br/><br/>
 
         <b>Object Counts:</b><br/>
-        - People (detections: {total_people:,}, tracks: {total_people_tracks:,})<br/>
-        - Cars (detections: {total_cars:,}, tracks: {total_car_tracks:,})<br/>
-        - Pets (detections: {total_pets:,}, tracks: {total_pet_tracks:,})<br/>
-        - Static Cars: {total_static_cars:,}<br/>
+        """
+
+        # Add only classes with detections or tracks
+        found_objects = False
+        for class_name in CONFIG.custom_classes.values():
+            detection_count = class_counters[class_name]
+            track_count = track_counters[class_name]
+            if detection_count > 0 or track_count > 0:
+                overview_text += f"- {class_name.title()} (detections: {detection_count:,}, tracks: {track_count:,})<br/>"
+                found_objects = True
+
+        if not found_objects:
+            overview_text += "- No objects detected<br/>"
+
+        # Add static object counts if enabled and found
+        if CONFIG.static_car_enabled:
+            static_found = any(static_counters[class_name] > 0 for class_name in CONFIG.custom_classes.values())
+            if static_found:
+                overview_text += "<br/><b>Static Objects:</b><br/>"
+                for class_name in CONFIG.custom_classes.values():
+                    static_count = static_counters[class_name]
+                    if static_count > 0:
+                        overview_text += f"- Static {class_name.title()}: {static_count:,}<br/>"
+
+        overview_text += f"""
         - <b>Total Tracks: {total_tracks:,}</b><br/><br/>
 
         <b>Processing Performance:</b><br/>
@@ -277,6 +303,7 @@ class ConsolidatedReportGenerator:
         content.append(Paragraph(overview_text, self.styles['BodyText']))
         content.append(Spacer(1, 0.6 * inch))
         return content
+
 
     def _create_video_section(self, video_id: str, video_info: Dict, statistics: Dict) -> List:
         """
@@ -308,19 +335,31 @@ class ConsolidatedReportGenerator:
             if width and height:
                 resolution = f"{width}x{height}"
 
-        # Extract detection statistics
-        people_count = statistics.get("people_count", 0)
-        cars_count = statistics.get("cars_count", 0)
-        pets_count = statistics.get("pets_count", 0)
-        static_cars = statistics.get("static_cars_count", 0)
+        # Extract detection statistics dynamically
         total_detections = statistics.get("total_detections", 0)
         avg_confidence = statistics.get("avg_confidence", 0)
 
         # Calculate unique track counts with type safety
         unique_tracks = statistics.get("unique_tracks", {})
-        people_tracks = len(unique_tracks.get("person", set())) if isinstance(unique_tracks, dict) else 0
-        car_tracks = len(unique_tracks.get("car", set())) if isinstance(unique_tracks, dict) else 0
-        pet_tracks = len(unique_tracks.get("pet", set())) if isinstance(unique_tracks, dict) else 0
+        track_counts = {}
+        detection_counts = {}
+        static_counts = {}
+
+        for class_name in CONFIG.custom_classes.values():
+            # Detection counts
+            detection_key = f"{class_name}_count"
+            detection_counts[class_name] = statistics.get(detection_key, 0)
+
+            # Track counts
+            if isinstance(unique_tracks, dict):
+                track_counts[class_name] = len(unique_tracks.get(class_name, set()))
+            else:
+                track_counts[class_name] = 0
+
+            # Static object counts
+            if CONFIG.static_car_enabled:
+                static_key = f"static_{class_name}_count"
+                static_counts[class_name] = statistics.get(static_key, 0)
 
         # Calculate actual processing performance metrics
         processing_time = statistics.get("processing_time", 0)
@@ -334,10 +373,31 @@ class ConsolidatedReportGenerator:
         • Resolution: {resolution}<br/><br/>
 
         <b>Detection Results:</b><br/>
-        - People (detections: {people_count:,}, tracks: {people_tracks:,})<br/>
-        - Cars (detections: {cars_count:,}, tracks: {car_tracks:,})<br/>
-        - Pets (detections: {pets_count:,}, tracks: {pet_tracks:,})<br/>
-        - Static Cars: {static_cars:,}<br/>
+        """
+
+        # Add only classes with detections or tracks
+        found_objects = False
+        for class_name in CONFIG.custom_classes.values():
+            detection_count = detection_counts[class_name]
+            track_count = track_counts[class_name]
+            if detection_count > 0 or track_count > 0:
+                video_text += f"- {class_name.title()} (detections: {detection_count:,}, tracks: {track_count:,})<br/>"
+                found_objects = True
+
+        if not found_objects:
+            video_text += "- No objects detected<br/>"
+
+        # Add static object counts if enabled and found
+        if CONFIG.static_car_enabled:
+            static_found = any(static_counts[class_name] > 0 for class_name in CONFIG.custom_classes.values())
+            if static_found:
+                video_text += "<br/><b>Static Objects:</b><br/>"
+                for class_name in CONFIG.custom_classes.values():
+                    static_count = static_counts[class_name]
+                    if static_count > 0:
+                        video_text += f"- Static {class_name.title()}: {static_count:,}<br/>"
+
+        video_text += f"""
         - Total Detections: {total_detections:,}<br/>
         - Average Confidence: {avg_confidence:.3f}<br/><br/>
 
@@ -349,6 +409,7 @@ class ConsolidatedReportGenerator:
         content.append(Paragraph(video_text, self.styles['BodyText']))
         content.append(Spacer(1, 0.6 * inch))
         return content
+
 
     def _format_duration(self, seconds: float) -> str:
         """Convert seconds to human-readable duration format (hours, minutes, seconds)."""

@@ -289,10 +289,10 @@ if __name__ == "__main__":
         "main.py",
         "--urls", "urls.txt",
         "--yolo-model", "yolo8n_pt_512_coco_skiped_crowd.pt",
-        # "--no-sam",
-        "--sam-model", "mobile_sagm.pt",
+        "--no-sam",
+        # "--sam-model", "mobile_sagm.pt",
         "--tracker", "botsort.yaml",
-        '--skip-download',
+        # '--skip-download',
         # "--skip-frames",
     ]
     sys.exit(main())

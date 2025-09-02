@@ -206,6 +206,7 @@ class VideoAnnotator:
             inner_color = tuple(min(255, c + 40) for c in color)
             cv2.polylines(frame, [points], isClosed=True, color=inner_color, thickness=1)
 
+
     def process_single_video(self, annotation_file: Path, **vis_options):
         """
         Processes a single video file, creating annotated version with flexible visualization options.
@@ -239,7 +240,17 @@ class VideoAnnotator:
         for ann in data.get('annotations', []):
             annotations_by_img_id[ann['image_id']].append(ann)
 
-        categories = {cat['id']: cat['name'] for cat in data.get('categories', [])}
+        # Build categories dynamically from custom classes in CONFIG and annotation data
+        categories = {}
+        # First, get categories from annotation data
+        for cat in data.get('categories', []):
+            categories[cat['id']] = cat['name']
+
+        # If no categories in data, use CONFIG custom classes
+        if not categories:
+            categories = CONFIG.custom_classes.copy()
+
+        # Assign colors dynamically to all categories
         self.colors = {cat_id: self._get_color(cat_id) for cat_id in categories}
 
         # Create frame index to image ID mapping for video synchronization
@@ -299,6 +310,7 @@ class VideoAnnotator:
         cap.release()
         out.release()
         logger.info(f"Successfully created visualized video: {output_path}")
+
 
     def process_all_videos(self, **vis_options):
         """Processes all annotation files in the configured directory."""

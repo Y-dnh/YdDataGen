@@ -108,6 +108,15 @@ class InferenceEngine:
             logger.error(f"No frames found in: {frames_dir}")
             return {}
 
+        # Create dynamic statistics structure based on custom classes
+        unique_tracks = {class_name: set() for class_name in CONFIG.custom_classes.values()}
+        class_counts = {f"{class_name}_count": 0 for class_name in CONFIG.custom_classes.values()}
+
+        # Add static detection counts for all classes if enabled
+        static_counts = {}
+        if CONFIG.static_car_enabled:
+            static_counts = {f"static_{class_name}_count": 0 for class_name in CONFIG.custom_classes.values()}
+
         results = {
             "video_id": video_id,
             "annotations": [],
@@ -115,12 +124,10 @@ class InferenceEngine:
                 "total_frames": len(frame_files),
                 "processed_frames": 0,
                 "total_detections": 0,
-                "unique_tracks": {"person": set(), "car": set(), "pet": set()},
-                "people_count": 0,
-                "pets_count": 0,
-                "cars_count": 0,
-                "static_cars_count": 0,
-                "avg_confidence": 0.0
+                "unique_tracks": unique_tracks,
+                "avg_confidence": 0.0,
+                **class_counts,
+                **static_counts
             }
         }
 
@@ -163,24 +170,23 @@ class InferenceEngine:
             processing_time = time.time() - start_time
             results["statistics"]["processing_time"] = processing_time
 
-        # Analyze car mobility after processing all frames
-        moving_cars_count = 0
-        static_cars_count = 0
+        # Analyze object mobility after processing all frames (for all classes if enabled)
         if CONFIG.static_car_enabled:
             for track_info in self.tracks.values():
-                if track_info.get('class_name') != 'car':
+                class_name = track_info.get('class_name')
+                if not class_name:
                     continue
 
                 if track_info['is_moving']:
-                    moving_cars_count += 1
+                    # Count moving objects (not stored in statistics, but could be added if needed)
+                    pass
                 else:
                     # Only count as static if observed for minimum duration
                     duration = track_info['last_seen_frame'] - track_info['start_frame']
                     if duration >= CONFIG.min_static_duration:
-                        static_cars_count += 1
-
-            results["statistics"]["moving_cars_count"] = moving_cars_count
-            results["statistics"]["static_cars_count"] = static_cars_count
+                        static_key = f"static_{class_name}_count"
+                        if static_key in results["statistics"]:
+                            results["statistics"][static_key] += 1
 
         if results["statistics"]["total_detections"] > 0:
             results["statistics"]["avg_confidence"] = confidence_sum / results["statistics"]["total_detections"]
@@ -226,19 +232,22 @@ class InferenceEngine:
                 frame_annotation["detections"].append(detection)
 
                 stats["total_detections"] += 1
-                stats["unique_tracks"][class_name.lower()].add(track_id)
+                stats["unique_tracks"][class_name].add(track_id)
 
                 # Update track last seen frame
                 if track_id in self.tracks:
                     self.tracks[track_id]['last_seen_frame'] = frame_idx
 
-                # Handle class-specific processing
-                if class_name.lower() == 'car':
-                    stats["cars_count"] += 1
+                # Update class-specific count
+                class_count_key = f"{class_name}_count"
+                if class_count_key in stats:
+                    stats[class_count_key] += 1
 
+                # Handle object mobility tracking (if enabled)
+                if CONFIG.static_car_enabled:
                     is_new_track = track_id not in self.tracks
 
-                    # Check car mobility: new tracks always, existing static tracks periodically
+                    # Check object mobility: new tracks always, existing static tracks periodically
                     should_check = False
                     if not is_new_track:
                         if not self.tracks[track_id]['is_moving']:
@@ -246,14 +255,10 @@ class InferenceEngine:
                                 should_check = True
 
                     if is_new_track or should_check:
-                        self._update_car_mobility(track_id, [x1, y1, x2, y2], frame_idx)
-
-                elif class_name.lower() == 'person':
-                    stats["people_count"] += 1
-                elif class_name.lower() == 'pet':
-                    stats["pets_count"] += 1
+                        self._update_object_mobility(track_id, [x1, y1, x2, y2], frame_idx, class_name)
 
         return frame_annotation
+
 
     def _apply_batch_sam_segmentation(self, frame_file: Path, frame_annotation: Dict) -> Dict:
         """Apply SAM segmentation to all detections in a frame using batch processing for efficiency."""
@@ -443,15 +448,15 @@ class InferenceEngine:
         return [coord for point in sampled_points for coord in point]
 
 
-    def _update_car_mobility(self, track_id: int, bbox: List[float], frame_idx: int):
-        """Track car movement by analyzing center point displacement over time."""
+    def _update_object_mobility(self, track_id: int, bbox: List[float], frame_idx: int, class_name: str):
+        """Track object movement by analyzing center point displacement over time."""
         center_x = (bbox[0] + bbox[2]) / 2
         center_y = (bbox[1] + bbox[3]) / 2
         current_center = (center_x, center_y)
 
         if track_id not in self.tracks:
             self.tracks[track_id] = {
-                'class_name': 'car',
+                'class_name': class_name,
                 'start_center': current_center,
                 'start_frame': frame_idx,
                 'is_moving': False,
@@ -470,6 +475,7 @@ class InferenceEngine:
         # Mark as moving if displacement exceeds threshold
         if displacement > CONFIG.movement_threshold:
             track_info['is_moving'] = True
+
 
     def clear_memory(self):
         """Clear GPU cache and tracking data to free memory between videos."""
