@@ -292,7 +292,7 @@ if __name__ == "__main__":
         "--no-sam",
         # "--sam-model", "mobile_sagm.pt",
         "--tracker", "botsort.yaml",
-        # '--skip-download',
+        '--skip-download',
         # "--skip-frames",
     ]
     sys.exit(main())

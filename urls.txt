@@ -1,20 +1,24 @@
 #test videos
 #https://www.youtube.com/watch?v=iJZcjZD0fw0&ab_channel=IncredibleIndianTraffic 00:00:05 00:00:10
-https://www.youtube.com/shorts/PAaWNQNBzaA 00:00:00 00:00:05
-https://www.youtube.com/shorts/fOJUh03ttqY
+#https://www.youtube.com/shorts/PAaWNQNBzaA 00:00:00 00:00:05
+#https://www.youtube.com/shorts/fOJUh03ttqY
 
 #1080p car or people seg
 https://www.youtube.com/watch?v=CftLBPI1Ga4&ab_channel=RoyaltyFreeVideoLibary
 https://www.youtube.com/watch?v=NBWd_5AZ79E&ab_channel=M.MFilms
-#https://www.youtube.com/watch?v=ORrrKXGx2SE&ab_channel=MuhammedJamnas
-#https://www.youtube.com/watch?v=M9mKnmt0YaM&ab_channel=Chepsi007 00:21:45 00:21:55
+https://www.youtube.com/watch?v=ORrrKXGx2SE&ab_channel=MuhammedJamnas
+https://www.youtube.com/watch?v=M9mKnmt0YaM&ab_channel=Chepsi007 00:21:45 00:21:55
 
 # 4320p detect
 https://www.youtube.com/watch?v=v4vO49ekCmg&ab_channel=8KULTRAHD 00:02:10 00:02:20
-#https://www.youtube.com/watch?v=NtKYoB7gif8&ab_channel=CharlesVeitch 00:00:10 00:00:15
+https://www.youtube.com/watch?v=NtKYoB7gif8&ab_channel=CharlesVeitch 00:00:10 00:00:15
 
 #Military Aircraft
-#https://www.youtube.com/watch?v=PdnIV2Oz7Vo&ab_channel=AirshowStuffVideos
-#https://www.youtube.com/watch?v=VXHGCmkoik0&ab_channel=FUNKER530-VeteranCommunity%26CombatFootage
-#https://www.youtube.com/shorts/C8tpD3UcvQE
-#https://www.youtube.com/watch?v=IpOBwbwg7-s&ab_channel=GungHoVids
+#https://www.youtube.com/watch?v=eV7YkWIqM0w&ab_channel=AiirSourceMilitary
+#https://www.youtube.com/watch?v=vTaSf2Plvlc&ab_channel=BloombergTelevision
+#https://www.youtube.com/watch?v=j14p1hr-gBw&ab_channel=AndrewC.
+#https://www.youtube.com/shorts/RSfHd9EZaJY
+#https://www.youtube.com/shorts/iPKeYJCsU0Y
+#https://www.youtube.com/watch?v=j9DNMI5JsM8&ab_channel=spencerhughes2255
+#https://www.youtube.com/watch?v=_y6IrIYS6z4&ab_channel=MediaMagikEntertainment
+#https://www.youtube.com/watch?v=OX_sh6TIO4A&ab_channel=ORDOVIZIUMAIRCRAFT%2CEMERGENCYCARS%2CASMR%2CWORLD

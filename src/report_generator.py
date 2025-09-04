@@ -103,13 +103,6 @@ class ConsolidatedReportGenerator:
         logger.info(f"Consolidated report generated: {report_path}")
         return report_path
 
-    def _create_timestamp_section(self) -> List:
-        """Add generation timestamp to report footer."""
-        content = [
-            Spacer(1, 0.5 * inch),
-            Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", self.styles['BodyText']),
-        ]
-        return content
 
     def _create_configuration_section(self) -> List:
         """Build comprehensive configuration overview section with all processing parameters."""
@@ -135,7 +128,6 @@ class ConsolidatedReportGenerator:
         • YOLO agnostic_nms: {CONFIG.yolo_agnostic_nms}<br/>
         • YOLO augment: {CONFIG.yolo_augment}<br/>
         • Max Detections: {CONFIG.yolo_max_det}<br/>
-        • Min Tracking Confidence: {CONFIG.min_confidence_for_tracking}<br/><br/>
 
         <b>Tracking Settings:</b><br/>
         • Track High Thresh: {CONFIG.track_high_thresh}<br/>
@@ -190,7 +182,6 @@ class ConsolidatedReportGenerator:
         content.append(Paragraph(config_text, self.styles['BodyText']))
         content.append(Spacer(1, 0.6 * inch))
         return content
-
 
     def _create_dataset_overview(self, all_video_results: Dict, video_info_dict: Dict = None) -> List:
         """
@@ -265,6 +256,7 @@ class ConsolidatedReportGenerator:
         <b>Average Video Duration:</b> {self._format_duration(avg_duration)}<br/><br/>
         <b>Total Frames:</b> {total_frames:,}<br/><br/>
         <b>Total Detections:</b> {total_detections:,}<br/><br/>
+        <b>Total Tracks:</b> {total_tracks:,}<br/><br/>
         <b>Average Confidence:</b> {avg_confidence:.3f}<br/><br/>
 
         <b>Object Counts:</b><br/>
@@ -293,9 +285,7 @@ class ConsolidatedReportGenerator:
                         overview_text += f"- Static {class_name.title()}: {static_count:,}<br/>"
 
         overview_text += f"""
-        - <b>Total Tracks: {total_tracks:,}</b><br/><br/>
-
-        <b>Processing Performance:</b><br/>
+        <br/><b>Processing Performance:</b><br/>
         - Average Inference Speed: {avg_processing_fps:.2f} FPS<br/>
         - Total Processing Time: {self._format_duration(total_processing_time)}<br/>
         """
@@ -303,7 +293,6 @@ class ConsolidatedReportGenerator:
         content.append(Paragraph(overview_text, self.styles['BodyText']))
         content.append(Spacer(1, 0.6 * inch))
         return content
-
 
     def _create_video_section(self, video_id: str, video_info: Dict, statistics: Dict) -> List:
         """
@@ -361,6 +350,9 @@ class ConsolidatedReportGenerator:
                 static_key = f"static_{class_name}_count"
                 static_counts[class_name] = statistics.get(static_key, 0)
 
+        # Calculate total tracks
+        total_tracks = sum(track_counts.values())
+
         # Calculate actual processing performance metrics
         processing_time = statistics.get("processing_time", 0)
         actual_inference_fps = frames / processing_time if processing_time > 0 else 0
@@ -372,7 +364,10 @@ class ConsolidatedReportGenerator:
         • Video FPS: {fps:.1f}<br/>
         • Resolution: {resolution}<br/><br/>
 
-        <b>Detection Results:</b><br/>
+        <b>Results:</b><br/>
+        • Total Detections: {total_detections:,}<br/>
+        • Total Tracks: {total_tracks:,}<br/>
+        • Average Confidence: {avg_confidence:.3f}<br/><br/>
         """
 
         # Add only classes with detections or tracks
@@ -387,27 +382,39 @@ class ConsolidatedReportGenerator:
         if not found_objects:
             video_text += "- No objects detected<br/>"
 
-        # Add static object counts if enabled and found
+        video_text += "<br/>"
+
+        # Add static object counts if enabled
         if CONFIG.static_car_enabled:
             static_found = any(static_counts[class_name] > 0 for class_name in CONFIG.custom_classes.values())
             if static_found:
-                video_text += "<br/><b>Static Objects:</b><br/>"
+                video_text += "<b>Static Objects:</b><br/>"
                 for class_name in CONFIG.custom_classes.values():
                     static_count = static_counts[class_name]
                     if static_count > 0:
                         video_text += f"- Static {class_name.title()}: {static_count:,}<br/>"
+            else:
+                video_text += "<b>Static Objects:</b> None<br/>"
+        else:
+            video_text += "<b>Static Objects:</b> Disabled<br/>"
 
         video_text += f"""
-        - Total Detections: {total_detections:,}<br/>
-        - Average Confidence: {avg_confidence:.3f}<br/><br/>
-
-        <b>Processing Performance:</b><br/>
+        <br/><b>Processing Performance:</b><br/>
         • Inference Speed: {actual_inference_fps:.2f} FPS<br/>
         • Processing Time: {self._format_duration(processing_time)}<br/>
         """
 
         content.append(Paragraph(video_text, self.styles['BodyText']))
         content.append(Spacer(1, 0.6 * inch))
+        return content
+
+
+    def _create_timestamp_section(self) -> List:
+        """Add generation timestamp to report footer."""
+        content = [
+            Spacer(1, 2 * inch),  # Larger spacer to push timestamp to bottom
+            Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", self.styles['BodyText']),
+        ]
         return content
 
 

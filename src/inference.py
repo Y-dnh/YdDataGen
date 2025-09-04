@@ -206,10 +206,6 @@ class InferenceEngine:
             boxes = yolo_result.boxes.cpu().numpy()
 
             for i, box in enumerate(boxes.data):
-                # Skip detections below confidence threshold or malformed boxes
-                if len(box) < 7 or box[5] < CONFIG.min_confidence_for_tracking:
-                    continue
-
                 x1, y1, x2, y2 = box[:4]
                 track_id = int(box[4])
                 conf = box[5]
