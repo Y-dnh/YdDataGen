@@ -7,10 +7,12 @@ YtDataGen is a comprehensive tool for generating computer vision datasets from Y
 - **Automated Video Processing**: Download YouTube videos and extract frames
 - **Multi-Model Inference**: YOLO for object detection + SAM for segmentation
 - **Object Tracking**: Support for BoT-SORT and ByteTrack trackers
-- **Static Car Detection**: Specialized detection for stationary vehicles
+- **Static Object Detection**: Specialized detection for stationary objects
 - **COCO Format Output**: Industry-standard annotation format
 - **Comprehensive Reporting**: Automated PDF report generation
 - **Visualization Tools**: Create annotated videos for validation
+- **CVAT Converter Tools**: Convert COCO annotations to CVAT for video 
+- **FiftyOne launcher**: Open your dataset in FiftyOne app
 - **Flexible Configuration**: Extensive customization options
 
 ## Table of Contents
@@ -174,6 +176,7 @@ python main.py --urls urls.txt --skip-download --confidence 0.7
 The system uses a centralized configuration in `src/config.py`. Key settings include:
 
 ### Custom Classes
+You can write your own classes
 ```python
 custom_classes = {
     0: "person",
@@ -241,7 +244,7 @@ https://youtube.com/watch?v=VIDEO_ID
 2. **Tracking**: Maintains object identity across frames
 3. **Segmentation**: SAM generates precise masks (if enabled)
 4. **Polygon Processing**: Simplifies and optimizes segmentation masks
-5. **Static Analysis**: Identifies non-moving cars
+5. **Static Analysis**: Identifies non-moving objects
 
 **Advanced Features**:
 - **Batch SAM Processing**: Optimized segmentation for multiple objects
@@ -326,7 +329,7 @@ https://youtube.com/watch?v=VIDEO_ID
 #### 11. `cvat_converter.py` - CVAT Xml creator
 **Purpose**: Rebuild COCO json into XML format for uploading annotations into CVAT
 
-#### 12. `fifty_one_visualizing.py` - FiftyOne launher
+#### 12. `fifty_one_visualizing.py` - FiftyOne launcher
 **Purpose**: Parse all files in data, create new dataset and use labels_final as annotation file
 
 ## Output Structure
