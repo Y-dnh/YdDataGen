@@ -32,6 +32,7 @@ Examples:
   %(prog)s --urls urls.txt --yolo-model yolo8s.pt --confidence 0.7
   %(prog)s --urls urls.txt --output-dir /path/to/output --device cuda
   %(prog)s --urls urls.txt --no-sam --static-cars
+  %(prog)s --urls urls.txt --min-track-length 10 --no-smoothing
         """
     )
 
@@ -59,6 +60,16 @@ Examples:
     parser.add_argument('--max-points', type=int, default=CONFIG.max_points,
                         help=f'Max polygon points (default: {CONFIG.max_points})')
 
+    # Track smoothing parameters
+    parser.add_argument('--no-smoothing', action='store_true', help='Disable track smoothing')
+    parser.add_argument('--min-track-length', type=int, default=CONFIG.min_track_length,
+                        help=f'Minimum track length to keep (default: {CONFIG.min_track_length})')
+    parser.add_argument('--max-gap-frames', type=int, default=CONFIG.max_gap_frames,
+                        help=f'Max frames to interpolate in gaps (default: {CONFIG.max_gap_frames})')
+    parser.add_argument('--class-smoothing-window', type=int, default=CONFIG.class_smoothing_window,
+                        help=f'Frames to analyze for class smoothing (default: {CONFIG.class_smoothing_window})')
+    parser.add_argument('--no-interpolation', action='store_true', help='Disable gap interpolation')
+
     parser.add_argument('--output-dir', '-o', type=str, help='Output directory')
     parser.add_argument('--no-report', action='store_true', help='Skip consolidated report generation')
 
@@ -75,7 +86,6 @@ Examples:
     parser.add_argument('--quiet', '-q', action='store_true', help='Quiet mode')
 
     return parser.parse_args()
-
 
 def update_config_from_args(args: argparse.Namespace):
     """
@@ -105,6 +115,15 @@ def update_config_from_args(args: argparse.Namespace):
     elif args.static_cars:
         CONFIG.static_car_enabled = True
 
+    # Track smoothing parameters
+    if args.no_smoothing:
+        CONFIG.track_smoothing_enabled = False
+    CONFIG.min_track_length = args.min_track_length
+    CONFIG.max_gap_frames = args.max_gap_frames
+    CONFIG.class_smoothing_window = args.class_smoothing_window
+    if args.no_interpolation:
+        CONFIG.interpolate_missing_detections = False
+
     CONFIG.half_precision = args.half_precision
 
     # Set logging level based on verbosity flags
@@ -114,7 +133,6 @@ def update_config_from_args(args: argparse.Namespace):
         CONFIG.log_level = 'INFO'
     elif args.quiet:
         CONFIG.log_level = 'ERROR'
-
 
 def process_video(
         video_id: str,
@@ -176,6 +194,7 @@ def main():
     logger.info("=" * 60)
     logger.info("YtDataGen - Optimized Configuration")
     logger.info(f"YOLO Model: {CONFIG.yolo_model_path}, Device: {CONFIG.device}")
+    logger.info(f"Track smoothing: {'ENABLED' if CONFIG.track_smoothing_enabled else 'DISABLED'}")
     logger.info("=" * 60)
 
     try:
@@ -290,9 +309,9 @@ if __name__ == "__main__":
         "--urls", "urls.txt",
         "--yolo-model", "yolo8n_pt_512_coco_skiped_crowd.pt",
         "--no-sam",
-        # "--sam-model", "mobile_sagm.pt",
+        # "--sam-model", "mobile_sag.pt",
         "--tracker", "botsort.yaml",
         '--skip-download',
-        # "--skip-frames",
+        "--skip-frames",
     ]
     sys.exit(main())

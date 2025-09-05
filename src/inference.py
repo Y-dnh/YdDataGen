@@ -8,6 +8,7 @@ import logging
 from tqdm import tqdm
 import time
 
+from src.track_smoother import TrackSmoother
 from src.config import CONFIG
 from src.utils import get_yolo_model_path, get_sam_model_path
 
@@ -170,6 +171,16 @@ class InferenceEngine:
             processing_time = time.time() - start_time
             results["statistics"]["processing_time"] = processing_time
 
+        # APPLY TRACK SMOOTHING BEFORE FINAL PROCESSING
+        if CONFIG.track_smoothing_enabled and results["annotations"]:
+            smoother = TrackSmoother()
+            results["annotations"] = smoother.smooth_video_tracks(results["annotations"])
+
+            # Recalculate statistics after smoothing
+            results["statistics"] = self._recalculate_statistics_after_smoothing(
+                results["annotations"], results["statistics"]
+            )
+
         # Analyze object mobility after processing all frames (for all classes if enabled)
         if CONFIG.static_car_enabled:
             for track_info in self.tracks.values():
@@ -194,6 +205,49 @@ class InferenceEngine:
         logger.info(f"Completed {video_id}: {results['statistics']}")
         return results
 
+
+    def _recalculate_statistics_after_smoothing(self, annotations: List[Dict], original_stats: Dict) -> Dict:
+        """Recalculate statistics after track smoothing has been applied."""
+        # Reset counters that need recalculation
+        stats = original_stats.copy()
+        stats["total_detections"] = 0
+
+        # Reset class-specific counts
+        for class_name in CONFIG.custom_classes.values():
+            class_count_key = f"{class_name}_count"
+            if class_count_key in stats:
+                stats[class_count_key] = 0
+
+        # Reset unique tracks
+        unique_tracks = {class_name: set() for class_name in CONFIG.custom_classes.values()}
+
+        confidence_sum = 0.0
+
+        # Recalculate from smoothed annotations
+        for frame_data in annotations:
+            for detection in frame_data.get("detections", []):
+                stats["total_detections"] += 1
+                confidence_sum += detection["confidence"]
+
+                class_name = detection["class_name"]
+                unique_tracks[class_name].add(detection["track_id"])
+
+                # Update class-specific count
+                class_count_key = f"{class_name}_count"
+                if class_count_key in stats:
+                    stats[class_count_key] += 1
+
+        # Update unique tracks and average confidence
+        stats["unique_tracks"] = unique_tracks
+
+        if stats["total_detections"] > 0:
+            stats["avg_confidence"] = confidence_sum / stats["total_detections"]
+        else:
+            stats["avg_confidence"] = 0.0
+
+        return stats
+
+
     def _process_frame_results(self, yolo_result, frame_idx: int, frame_file: Path, stats: Dict) -> Dict:
         """Convert YOLO tracking results to standardized detection format."""
         frame_annotation = {
@@ -206,6 +260,9 @@ class InferenceEngine:
             boxes = yolo_result.boxes.cpu().numpy()
 
             for i, box in enumerate(boxes.data):
+                # If the tracker is uncertain, no track ID is created. This means that we will have an error when calculating the array.
+                if len(box) < 7:
+                    continue
                 x1, y1, x2, y2 = box[:4]
                 track_id = int(box[4])
                 conf = box[5]
