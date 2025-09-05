@@ -125,40 +125,36 @@ class TrackSmoother:
 
         return track_db
 
+    # Updated function to replace the one in track_smoother.py
     def _find_dominant_class(self, class_history: List[Tuple[int, int, float]]) -> Optional[int]:
-        """Find the most confident and frequent class in the track."""
-        # Group by class and calculate metrics
-        class_stats = defaultdict(lambda: {'count': 0, 'total_conf': 0.0, 'high_conf_count': 0})
-
-        for frame_id, class_id, confidence in class_history:
-            class_stats[class_id]['count'] += 1
-            class_stats[class_id]['total_conf'] += confidence
-
-            if confidence >= self.class_confidence_threshold:
-                class_stats[class_id]['high_conf_count'] += 1
-
-        if not class_stats:
+        """Find most reliable class using simple weighted voting + frequency filtering."""
+        if not class_history:
             return None
 
-        # Find best class based on high-confidence detections first, then frequency
-        best_class = None
-        best_score = -1
+        # Weighted voting: each detection votes with weight = confidence
+        class_weights = defaultdict(float)
+        class_counts = defaultdict(int)
 
-        for class_id, stats in class_stats.items():
-            # Primary metric: ratio of high-confidence detections
-            high_conf_ratio = stats['high_conf_count'] / stats['count']
+        for frame_id, class_id, confidence in class_history:
+            class_weights[class_id] += confidence
+            class_counts[class_id] += 1
 
-            # Secondary metric: average confidence
-            avg_conf = stats['total_conf'] / stats['count']
+        # Filter out rare classes (likely false positives)
+        total_detections = len(class_history)
+        min_detections = max(2, int(total_detections * self.class_confidence_threshold))  # At least 20% or 2 detections
 
-            # Combined score favoring high-confidence ratios
-            score = high_conf_ratio * 2 + avg_conf
+        valid_classes = {
+            class_id: weight
+            for class_id, weight in class_weights.items()
+            if class_counts[class_id] >= min_detections
+        }
 
-            if score > best_score:
-                best_score = score
-                best_class = class_id
+        # Fallback to most frequent if all filtered out
+        if not valid_classes:
+            return max(class_counts.keys(), key=class_counts.get)
 
-        return best_class
+        # Return class with the highest weighted vote
+        return max(valid_classes.keys(), key=valid_classes.get)
 
     def _fill_track_gaps(self, track_db: Dict[int, Dict]) -> Dict[int, Dict]:
         """Fill gaps in tracks by interpolating missing frames."""

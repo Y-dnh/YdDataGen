@@ -324,7 +324,7 @@ class VideoAnnotator:
             self.process_single_video(ann_file, **vis_options)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Візуалізація анотацій COCO на відео з покращеним стилем.")
     parser.add_argument("-f", "--annotation_file", type=Path, help="Шлях до файлу анотацій COCO (.json).")
     parser.add_argument("--all", action="store_true", help="Запустити візуалізацію для всіх файлів анотацій.")
@@ -349,3 +349,12 @@ if __name__ == "__main__":
         visualizer.process_all_videos(**vis_options)
     else:
         visualizer.process_single_video(args.annotation_file, **vis_options)
+
+
+if __name__ == "__main__":
+    # Development/testing configuration - remove in production
+    sys.argv = [
+        "main.py",
+        "--all",
+    ]
+    sys.exit(main())

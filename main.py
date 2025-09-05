@@ -22,23 +22,17 @@ logger = logging.getLogger(__name__)
 
 
 def parse_arguments() -> argparse.Namespace:
-    """Parse command line arguments with comprehensive options for video dataset generation."""
+    """Parse command line arguments with simplified options for video dataset generation."""
     parser = argparse.ArgumentParser(
         description='YtDataGen - Generate video datasets with object detection and tracking',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s --urls urls.txt
-  %(prog)s --urls urls.txt --yolo-model yolo8s.pt --confidence 0.7
-  %(prog)s --urls urls.txt --output-dir /path/to/output --device cuda
-  %(prog)s --urls urls.txt --no-sam --static-cars
-  %(prog)s --urls urls.txt --min-track-length 10 --no-smoothing
-        """
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
+    # Required arguments
     parser.add_argument('--urls', '-u', type=str, required=True,
                         help='Path to text file containing YouTube URLs')
 
+    # Model configuration
     parser.add_argument('--yolo-model', type=str, default=CONFIG.yolo_model_path,
                         help=f'YOLO model path (default: {CONFIG.yolo_model_path})')
     parser.add_argument('--sam-model', type=str, default=CONFIG.sam_model_path,
@@ -46,93 +40,61 @@ Examples:
     parser.add_argument('--tracker', type=str, default=CONFIG.tracker_type,
                         help=f'Tracker type (default: {CONFIG.tracker_type})')
 
-    parser.add_argument('--confidence', type=float, default=CONFIG.yolo_confidence,
-                        help=f'YOLO confidence threshold (default: {CONFIG.yolo_confidence})')
-    parser.add_argument('--iou', type=float, default=CONFIG.yolo_iou,
-                        help=f'YOLO IoU threshold (default: {CONFIG.yolo_iou})')
-    parser.add_argument('--sam-conf', type=float, default=CONFIG.sam_confidence,
-                        help=f'SAM confidence threshold (default: {CONFIG.sam_confidence})')
-
+    # Feature toggles
     parser.add_argument('--no-sam', action='store_true', help='Disable SAM segmentation')
-    parser.add_argument('--static-cars', action='store_true', default=CONFIG.static_car_enabled,
-                        help='Enable static car detection')
     parser.add_argument('--no-static-cars', action='store_true', help='Disable static car detection')
-    parser.add_argument('--max-points', type=int, default=CONFIG.max_points,
-                        help=f'Max polygon points (default: {CONFIG.max_points})')
-
-    # Track smoothing parameters
     parser.add_argument('--no-smoothing', action='store_true', help='Disable track smoothing')
-    parser.add_argument('--min-track-length', type=int, default=CONFIG.min_track_length,
-                        help=f'Minimum track length to keep (default: {CONFIG.min_track_length})')
-    parser.add_argument('--max-gap-frames', type=int, default=CONFIG.max_gap_frames,
-                        help=f'Max frames to interpolate in gaps (default: {CONFIG.max_gap_frames})')
-    parser.add_argument('--class-smoothing-window', type=int, default=CONFIG.class_smoothing_window,
-                        help=f'Frames to analyze for class smoothing (default: {CONFIG.class_smoothing_window})')
     parser.add_argument('--no-interpolation', action='store_true', help='Disable gap interpolation')
 
+    # Output configuration
     parser.add_argument('--output-dir', '-o', type=str, help='Output directory')
-    parser.add_argument('--no-report', action='store_true', help='Skip consolidated report generation')
 
+    # Pipeline control
     parser.add_argument('--skip-download', action='store_true', help='Skip video download')
     parser.add_argument('--skip-frames', action='store_true', help='Skip frame extraction')
+    parser.add_argument('--skip-inference', action='store_true', help='Skip inference processing')
+    parser.add_argument('--skip-annotations', action='store_true', help='Skip annotation generation')
+    parser.add_argument('--skip-report', action='store_true', help='Skip report generation')
 
-    parser.add_argument('--device', type=str, choices=['cpu', 'cuda', 'auto'], default='auto',
-                        help='Device to use for inference')
-    parser.add_argument('--half-precision', action='store_true', default=CONFIG.half_precision,
-                        help='Use FP16 inference')
-
+    # Logging
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose logging')
     parser.add_argument('--debug', action='store_true', help='Debug logging')
     parser.add_argument('--quiet', '-q', action='store_true', help='Quiet mode')
 
     return parser.parse_args()
 
+
 def update_config_from_args(args: argparse.Namespace):
-    """
-    Updates global CONFIG object with parsed command line arguments.
-    Handles path resolution, model configurations, and logging levels.
-    """
+    """Updates global CONFIG object with parsed command line arguments."""
     CONFIG.paths.urls_file = Path(args.urls)
     if args.output_dir:
         CONFIG.paths.root = Path(args.output_dir)
         # Reinitialize paths to use new root directory
         CONFIG.paths = CONFIG.paths.__class__()
 
-    # Update model and inference parameters
+    # Update model paths
     CONFIG.yolo_model_path = args.yolo_model
     CONFIG.sam_model_path = args.sam_model
     CONFIG.tracker_type = args.tracker
-    CONFIG.yolo_confidence = args.confidence
-    CONFIG.yolo_iou = args.iou
-    CONFIG.sam_confidence = args.sam_conf
-    CONFIG.max_points = args.max_points
 
-    # Handle feature toggles with proper precedence
+    # Handle feature toggles
     if args.no_sam:
         CONFIG.sam_enabled = False
     if args.no_static_cars:
         CONFIG.static_car_enabled = False
-    elif args.static_cars:
-        CONFIG.static_car_enabled = True
-
-    # Track smoothing parameters
     if args.no_smoothing:
         CONFIG.track_smoothing_enabled = False
-    CONFIG.min_track_length = args.min_track_length
-    CONFIG.max_gap_frames = args.max_gap_frames
-    CONFIG.class_smoothing_window = args.class_smoothing_window
     if args.no_interpolation:
         CONFIG.interpolate_missing_detections = False
 
-    CONFIG.half_precision = args.half_precision
-
-    # Set logging level based on verbosity flags
+    # Set logging level
     if args.debug:
         CONFIG.log_level = 'DEBUG'
     elif args.verbose:
         CONFIG.log_level = 'INFO'
     elif args.quiet:
         CONFIG.log_level = 'ERROR'
+
 
 def process_video(
         video_id: str,
@@ -201,14 +163,14 @@ def main():
         # Step 1: Video acquisition
         video_info_dict = {}
         if not args.skip_download:
-            logger.info("Step 1/4: Downloading videos")
+            logger.info("Step 1/5: Downloading videos")
             video_info_dict = download_videos()
             if not video_info_dict:
                 logger.error("No videos were downloaded. Exiting.")
                 return 1
         else:
             # Use existing videos if download is skipped
-            logger.info("Step 1/4: Skipped download, using existing videos.")
+            logger.info("Step 1/5: Skipped download, using existing videos.")
             existing_videos = list(CONFIG.paths.videos_dir.glob("*.mp4"))
             if not existing_videos:
                 logger.error(f"No videos found in {CONFIG.paths.videos_dir} to process.")
@@ -219,11 +181,10 @@ def main():
 
         # Step 2: Frame extraction for inference
         if not args.skip_frames:
-            logger.info("Step 2/4: Extracting frames")
+            logger.info("Step 2/5: Extracting frames")
             extract_frames(video_info_dict)
         else:
-            logger.info("Step 2/4: Skipped frame extraction")
-
+            logger.info("Step 2/5: Skipped frame extraction")
 
         # Gather comprehensive video metadata for report generation
         logger.info("Gathering detailed video metadata...")
@@ -238,24 +199,34 @@ def main():
                 logger.warning(f"Path for video {video_id} is missing or invalid.")
 
         # Step 3: Core processing pipeline
-        logger.info("Step 3/4: Running inference and generating annotations")
-
         all_video_results = {}
         processed_annotation_files = []
 
-        # Process each video through inference and annotation generation
-        for video_id, video_info in video_info_dict.items():
-            # Create fresh inference engine for each video to prevent memory issues
-            inference_engine = InferenceEngine()
-            results = process_video(video_id, video_info, inference_engine)
-            if results:
-                all_video_results[video_id] = results
-                if "annotation_file_path" in results:
-                    processed_annotation_files.append(results["annotation_file_path"])
+        if not args.skip_inference:
+            logger.info("Step 3/5: Running inference and generating annotations")
 
-        # Step 4: Final consolidation and reporting
-        if processed_annotation_files:
-            logger.info("Step 4/4: Creating final combined annotations file...")
+            # Process each video through inference and annotation generation
+            for video_id, video_info in video_info_dict.items():
+                # Create fresh inference engine for each video to prevent memory issues
+                inference_engine = InferenceEngine()
+                results = process_video(video_id, video_info, inference_engine)
+                if results:
+                    all_video_results[video_id] = results
+                    if "annotation_file_path" in results:
+                        processed_annotation_files.append(results["annotation_file_path"])
+        else:
+            logger.info("Step 3/5: Skipped inference")
+            # If inference is skipped, check for existing annotation files
+            for video_id in video_info_dict.keys():
+                existing_annotation = CONFIG.paths.annotations_dir / f"{video_id}_annotations.json"
+                if existing_annotation.exists():
+                    processed_annotation_files.append(existing_annotation)
+                    all_video_results[video_id] = {"annotation_file_path": existing_annotation}
+
+        # Step 4: Final consolidation and annotations
+        final_annotation_file = None
+        if not args.skip_annotations:
+            logger.info("Step 4/5: Creating final combined annotations file...")
 
             final_annotator = COCOAnnotationGenerator()
 
@@ -263,32 +234,34 @@ def main():
             final_annotation_file = final_annotator.save_final_annotations(
                 processed_annotation_files,
                 video_info_dict
-                # todo check video quality
             )
 
             if final_annotation_file:
                 logger.info(f"Final annotations file created: {final_annotation_file}")
-
-                # Generate comprehensive PDF report with statistics and visualizations
-                logger.info("Generating consolidated final report...")
-                report_generator = ConsolidatedReportGenerator()
-                report_path = report_generator.generate_consolidated_report(
-                    all_video_results,
-                    video_info_dict
-                )
-                logger.info(f"Successfully generated consolidated report: {report_path}")
             else:
-                logger.error("Failed to create the final annotations file. Report generation skipped.")
-
+                logger.error("Failed to create the final annotations file.")
         else:
-            logger.warning("No videos were processed successfully. Skipping final report and annotation generation.")
+            logger.info("Step 4/5: Skipped annotations creation")
+
+        # Step 5: Report generation
+        if not args.skip_report:
+            logger.info("Step 5/5: Generating consolidated final report...")
+            report_generator = ConsolidatedReportGenerator()
+            report_path = report_generator.generate_consolidated_report(
+                all_video_results,
+                video_info_dict
+            )
+            logger.info(f"Successfully generated consolidated report: {report_path}")
+        else:
+            logger.info("Step 5/5: Skipped report generation")
 
         # Final summary
         logger.info("=" * 60)
         logger.info("PROCESSING COMPLETE")
         logger.info(f"Total videos processed successfully: {len(all_video_results)}")
-        logger.info(f"Final combined annotation file is at: {final_annotation_file}")
-        if not args.no_report and 'report_path' in locals():
+        if final_annotation_file:
+            logger.info(f"Final combined annotation file is at: {final_annotation_file}")
+        if not args.skip_report and 'report_path' in locals():
             logger.info(f"Consolidated PDF report is at: {report_path}")
         logger.info("=" * 60)
 
@@ -309,9 +282,10 @@ if __name__ == "__main__":
         "--urls", "urls.txt",
         "--yolo-model", "yolo8n_pt_512_coco_skiped_crowd.pt",
         "--no-sam",
-        # "--sam-model", "mobile_sag.pt",
+        # "--sam-model", "mobile_sam.pt",
         "--tracker", "botsort.yaml",
-        '--skip-download',
-        "--skip-frames",
+        # '--skip-download',
+        # "--skip-frames",
+        # "--skip-inference",
     ]
     sys.exit(main())

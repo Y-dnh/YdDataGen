@@ -58,7 +58,7 @@ class Config:
         self.backup_count = 5
 
         # Download settings
-        self.video_quality = 1080
+        self.video_quality = 640
         self.download_quality = (f"bestvideo[width={self.video_quality}]/"
                                  f"bestvideo[height={self.video_quality}]/"
                                  f"bestvideo[height<={self.video_quality}]/"
@@ -74,35 +74,35 @@ class Config:
         self.track_low_thresh = 0.05
         self.new_track_thresh = 0.5
         self.track_buffer = 180
-        self.match_thresh = 0.95
+        self.match_thresh = 0.5
         self.fuse_score = True
         # BoT-SORT settings
         self.gmc_method = "none"
-        self.proximity_thresh = 0.5  # minimum IoU for valid match with ReID
-        self.appearance_thresh = 0.9  # minimum appearance similarity for ReID
+        self.proximity_thresh = 0.4  # minimum IoU for valid match with ReID
+        self.appearance_thresh = 0.5  # minimum appearance similarity for ReID
         self.with_reid = True
 
         # Track smoothing and filtering parameters
         self.track_smoothing_enabled = True
-        self.min_track_length = 5  # minimum frames to keep a track
-        self.max_gap_frames = 10  # max frames to interpolate missing detections
+        self.min_track_length = 10  # minimum frames to keep a track
+        self.max_gap_frames = 30  # max frames to interpolate missing detections
         self.min_confidence_for_gap_fill = 0.4  # min confidence to fill gaps
         self.class_smoothing_window = 5  # frames to look at for class smoothing
-        self.class_confidence_threshold = 0.7  # confidence threshold for stable classification
+        self.class_confidence_threshold = 0.2  # minimum ratio of detections for class to be valid (0.0-1.0)
         self.interpolate_missing_detections = True  # fill gaps in tracks
 
         # YOLO Detection settings
         self.yolo_model_path = "yolov8n.pt"
         self.yolo_confidence = 0.35
-        self.yolo_iou = 0.6
+        self.yolo_iou = 0.5
         self.yolo_rect = False
-        self.yolo_half = False
+        self.yolo_half = True
         self.yolo_max_det = 300
         self.yolo_classes = None  # None for all classes, or list like [0, 2] for specific
         self.yolo_agnostic_nms = False
         self.yolo_augment = False  # Disabled due to CUDA error
         self.stream_buffer = False
-        self.yolo_imgsz = 640
+        self.yolo_imgsz = 320
 
         # SAM Segmentation settings
         self.sam_model_path = "sam2.1_t.pt"
@@ -110,13 +110,13 @@ class Config:
         self.sam_confidence = 0.5
         self.sam_iou = 0.5
         self.sam_retina_masks = True
-        self.sam_half = False
-        self.sam_imgsz = 640
+        self.sam_half = True
+        self.sam_imgsz = 320
 
         # Segmentation polygon settings
-        self.max_points = 5
+        self.max_points = 30
         self.min_area = 100.0
-        self.fill_holes = False
+        self.fill_holes = True
         self.approximation_method = "douglas_peucker"
 
         # Static object detection (renamed from static_car_enabled for generalization)

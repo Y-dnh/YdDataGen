@@ -103,7 +103,6 @@ class ConsolidatedReportGenerator:
         logger.info(f"Consolidated report generated: {report_path}")
         return report_path
 
-
     def _create_configuration_section(self) -> List:
         """Build comprehensive configuration overview section with all processing parameters."""
         content = [
@@ -113,71 +112,99 @@ class ConsolidatedReportGenerator:
 
         # Format configuration as structured HTML for better readability
         config_text = f"""
-        <b>YOLO Model:</b> {CONFIG.yolo_model_path}<br/>
-        <b>Sam Model:</b> {CONFIG.sam_model_path}<br/>
-        <b>Tracker:</b> {CONFIG.tracker_type}<br/>
-        <b>Device:</b> {CONFIG.device}<br/>
-        <b>Inference Yolo Resolution:</b> {CONFIG.yolo_imgsz}<br/>
-        <b>Inference SAM Resolution:</b> {CONFIG.sam_imgsz}<br/>
-        <b>Half Precision:</b> {'Enabled' if CONFIG.half_precision else 'Disabled'}<br/><br/>
+        <b>Model Configuration:</b><br/>
+        • YOLO Model: {CONFIG.yolo_model_path}<br/>
+        • SAM Model: {CONFIG.sam_model_path if CONFIG.sam_enabled else 'Disabled'}<br/>
+        • Tracker: {CONFIG.tracker_type}<br/>
+        • Device: {CONFIG.device}<br/>
+
+        <b>Resolution Settings:</b><br/>
+        • YOLO Inference: {CONFIG.yolo_imgsz}<br/>
+        • SAM Inference: {CONFIG.sam_imgsz}<br/><br/>
 
         <b>Detection Parameters:</b><br/>
         • YOLO Confidence: {CONFIG.yolo_confidence}<br/>
-        • YOLO IoU: {CONFIG.yolo_iou}<br/>
-        • YOLO rect: {CONFIG.yolo_rect}<br/>
-        • YOLO agnostic_nms: {CONFIG.yolo_agnostic_nms}<br/>
-        • YOLO augment: {CONFIG.yolo_augment}<br/>
-        • Max Detections: {CONFIG.yolo_max_det}<br/>
+        • YOLO IoU Threshold: {CONFIG.yolo_iou}<br/>
+        • Max Detections per Frame: {CONFIG.yolo_max_det}<br/>
+        • Rectangular Inference: {CONFIG.yolo_rect}<br/>
+        • Agnostic NMS: {CONFIG.yolo_agnostic_nms}<br/>
+        • YOLO Halh: {CONFIG.yolo_half}<br/>
+        • Augmented Inference: {CONFIG.yolo_augment}<br/><br/>
 
-        <b>Tracking Settings:</b><br/>
-        • Track High Thresh: {CONFIG.track_high_thresh}<br/>
-        • Track Low Thresh: {CONFIG.track_low_thresh}<br/>
-        • New Track Thresh: {CONFIG.new_track_thresh}<br/>
-        • Match Thresh: {CONFIG.match_thresh}<br/>
-        • Track Buffer: {CONFIG.track_buffer}<br/>
-        • Fuse Score: {CONFIG.fuse_score}<br/>
-        • GMC Method: {CONFIG.gmc_method}<br/>
-        • Proximity Thresh: {CONFIG.proximity_thresh}<br/>
-        • Appearance Thresh: {CONFIG.appearance_thresh}<br/>
-        • ReId: {CONFIG.with_reid}<br/><br/>
+        <b>Tracking Parameters:</b><br/>
+        • High Confidence Threshold: {CONFIG.track_high_thresh}<br/>
+        • Low Confidence Threshold: {CONFIG.track_low_thresh}<br/>
+        • New Track Threshold: {CONFIG.new_track_thresh}<br/>
+        • Match Threshold: {CONFIG.match_thresh}<br/>
+        • Track Buffer Frames: {CONFIG.track_buffer}<br/>
+        • Fuse Detection Scores: {'Yes' if CONFIG.fuse_score else 'No'}<br/>
+        • Global Motion Compensation: {CONFIG.gmc_method}<br/>
+        • Proximity Threshold (ReID): {CONFIG.proximity_thresh}<br/>
+        • Appearance Threshold (ReID): {CONFIG.appearance_thresh}<br/>
+        • Re-Identification: {CONFIG.with_reid}<br/><br/>
 
-        <b>SAM Segmentation:</b><br/>
-        • SAM Enabled: {'Yes' if CONFIG.sam_enabled else 'No'}<br/>
+        <b>Track Smoothing:</b><br/>
+        • Smoothing Enabled: {CONFIG.track_smoothing_enabled}<br/>
         """
 
-        # Conditionally add SAM-specific parameters
+        # Add smoothing parameters only if enabled
+        if CONFIG.track_smoothing_enabled:
+            config_text += f"""
+        • Minimum Track Length: {CONFIG.min_track_length} frames<br/>
+        • Max Gap Fill: {CONFIG.max_gap_frames} frames<br/>
+        • Min Confidence for Gap Fill: {CONFIG.min_confidence_for_gap_fill}<br/>
+        • Class Smoothing Window: {CONFIG.class_smoothing_window} frames<br/>
+        • Class Confidence Threshold: {CONFIG.class_confidence_threshold}<br/>
+        • Gap Interpolation: {CONFIG.interpolate_missing_detections}<br/><br/>
+            """
+        else:
+            config_text += "<br/>"
+
+        # SAM Configuration
+        config_text += f"""
+        <b>SAM Segmentation:</b><br/>
+        • SAM Enabled: {CONFIG.sam_enabled}<br/>
+        """
+
         if CONFIG.sam_enabled:
             config_text += f"""
         • SAM Confidence: {CONFIG.sam_confidence}<br/>
-        • SAM IoU: {CONFIG.sam_iou}<br/>
-        • SAM Confidence: {CONFIG.sam_confidence}<br/>
-        • Retina Mask: {CONFIG.sam_retina_masks}<br/><br/>
+        • SAM IoU Threshold: {CONFIG.sam_iou}<br/>
+        • SAM Halh: {CONFIG.sam_half}<br/>
+        • Retina Masks: {CONFIG.sam_retina_masks}<br/><br/>
             """
         else:
             config_text += "<br/>"
 
+        # Static Object Detection
         config_text += f"""
-        <b>Static Car Detection:</b><br/>
-        • Enabled: {'Yes' if CONFIG.static_car_enabled else 'No'}<br/>
+        <b>Static Object Detection:</b><br/>
+        • Static Detection: {CONFIG.static_car_enabled}<br/>
         """
 
-        # Add movement threshold only if static car detection is enabled
         if CONFIG.static_car_enabled:
             config_text += f"""
         • Movement Threshold: {CONFIG.movement_threshold} pixels<br/>
-        • Min Static Duration: {CONFIG.min_static_duration} pixels<br/>
-        • Static Check Interval: {CONFIG.static_check_interval} pixels<br/><br/>
+        • Min Static Duration: {CONFIG.min_static_duration} frames<br/>
+        • Static Check Interval: {CONFIG.static_check_interval} frames<br/><br/>
             """
         else:
             config_text += "<br/>"
 
+        # Polygon and Segmentation Settings
         config_text += f"""
-        <b>Polygon Settings:</b><br/>
-        • Max Points: {CONFIG.max_points}<br/>
-        • Min Area: {CONFIG.min_area}<br/>
-        • Fill Holes: {'Enabled' if CONFIG.fill_holes else 'Disabled'}<br/>
-        • Approximation Method: {CONFIG.approximation_method}<br/><br/>
+        <b>Polygon Configuration:</b><br/>
+        • Max Points per Polygon: {CONFIG.max_points}<br/>
+        • Minimum Area: {CONFIG.min_area} pixels²<br/>
+        • Fill Polygon Holes: {CONFIG.fill_holes}<br/>
+        • Approximation Method: {CONFIG.approximation_method.replace('_', ' ').title()}<br/><br/>
+
+        <b>Class Mapping:</b><br/>
         """
+
+        # Add class mapping
+        for class_id, class_name in CONFIG.custom_classes.items():
+            config_text += f"• Class {class_id}: {class_name}<br/>"
 
         content.append(Paragraph(config_text, self.styles['BodyText']))
         content.append(Spacer(1, 0.6 * inch))
