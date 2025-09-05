@@ -35,13 +35,11 @@ Below are clickable previews that link to YouTube videos
 
 | Only detection on 8k video | Detection with segmentation with people walking | Football match |
 |-----------------------------|-----------------------------------------------|----------------|
-| [![8k detection](https://img.youtube.com/vi/tDtCKGIMQ7w/maxresdefault.jpg)](https://youtu.be/tDtCKGIMQ7w) | [![People walking](https://img.youtube.com/vi/r00vX-lx7Ok/maxresdefault.jpg)](https://youtu.be/r00vX-lx7Ok) | [![Football match](https://img.youtube.com/vi/ahzNxjBc0zQ/maxresdefault.jpg)](https://youtu.be/ahzNxjBc0zQ) |
+| [![8k detection](https://img.youtube.com/vi/tDtCKGIMQ7w/maxresdefault.jpg)](https://youtu.be/tDtCKGIMQ7w) | [![People walking](https://img.youtube.com/vi/r00vX-lx7Ok/maxresdefault.jpg)](https://youtu.be/iY_VSz0VP_E) | [![Football match](https://img.youtube.com/vi/ahzNxjBc0zQ/maxresdefault.jpg)](https://youtu.be/m11oYyfsEas) |
 
 | Detection with segmentation of road traffic | Detection with segmentation on road traffic | Light tracking of cars and people |
 |---------------------------------------------|---------------------------------------------|----------------------------------|
-| [![Road traffic detection](https://img.youtube.com/vi/j1OVdiglhug/maxresdefault.jpg)](https://youtu.be/j1OVdiglhug) | [![Road traffic segmentation](https://img.youtube.com/vi/pQPVOvtUTik/maxresdefault.jpg)](https://youtu.be/pQPVOvtUTik) | [![Light tracking](https://img.youtube.com/vi/ynd2h_vO480/maxresdefault.jpg)](https://youtu.be/ynd2h_vO480) |
-
-
+| [![Road traffic detection](https://img.youtube.com/vi/j1OVdiglhug/maxresdefault.jpg)](https://youtu.be/BdRI90mrDNA) | [![Road traffic segmentation](https://img.youtube.com/vi/pQPVOvtUTik/maxresdefault.jpg)](https://youtu.be/pQPVOvtUTik) | [![Light tracking](https://img.youtube.com/vi/ynd2h_vO480/maxresdefault.jpg)](https://youtu.be/wiBmTBmQ5qw) |
 
 ## Installation
 
@@ -97,60 +95,49 @@ python download_models.py
 python main.py --urls <path_to_urls> [OPTIONS]
 ```
 
+## Command Line Arguments
+
 ### Core Arguments
 
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--urls`, `-u` | str | **Required** | Path to text file containing YouTube URLs |
-| `--output-dir`, `-o` | str | Current dir | Output directory for all results |
+| Argument             | Type | Default      | Description                               |
+| -------------------- | ---- | ------------ | ----------------------------------------- |
+| `--urls`, `-u`       | str  | **Required** | Path to text file containing YouTube URLs |
+| `--output-dir`, `-o` | str  | Current dir  | Output directory for all results          |
 
 ### Model Configuration
 
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--yolo-model` | str | `yolov8n.pt` | YOLO model path for object detection |
-| `--sam-model` | str | `sam2.1_t.pt` | SAM model path for segmentation |
-| `--tracker` | str | `botsort.yaml` | Tracker configuration file |
-
-### Detection Parameters
-
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--confidence` | float | 0.5 | YOLO confidence threshold |
-| `--iou` | float | 0.5 | YOLO IoU threshold for NMS |
-| `--sam-conf` | float | 0.5 | SAM confidence threshold |
+| Argument       | Type | Default                  | Description                          |
+| -------------- | ---- | ------------------------ | ------------------------------------ |
+| `--yolo-model` | str  | `CONFIG.yolo_model_path` | YOLO model path for object detection |
+| `--sam-model`  | str  | `CONFIG.sam_model_path`  | SAM model path for segmentation      |
+| `--tracker`    | str  | `CONFIG.tracker_type`    | Tracker configuration file           |
 
 ### Feature Toggles
 
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--no-sam` | flag | False | Disable SAM segmentation |
-| `--static-cars` | flag | True | Enable static car detection |
-| `--no-static-cars` | flag | False | Disable static car detection |
-| `--no-report` | flag | False | Skip PDF report generation |
+| Argument             | Type | Default | Description                                 |
+| -------------------- | ---- | ------- | ------------------------------------------- |
+| `--no-sam`           | flag | False   | Disable SAM segmentation                    |
+| `--no-static-cars`   | flag | False   | Disable static car detection                |
+| `--no-smoothing`     | flag | False   | Disable track smoothing                     |
+| `--no-interpolation` | flag | False   | Disable interpolation of missing detections |
 
 ### Processing Control
 
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--skip-download` | flag | False | Use existing videos, skip download |
-| `--skip-frames` | flag | False | Use existing frames, skip extraction |
-| `--max-points` | int | 100 | Maximum polygon points for segmentation |
-
-### System Configuration
-
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--device` | str | `auto` | Device: `cpu`, `cuda`, or `auto` |
-| `--half-precision` | flag | False | Use FP16 inference for speed |
+| Argument             | Type | Default | Description                                        |
+| -------------------- | ---- | ------- | -------------------------------------------------- |
+| `--skip-download`    | flag | False   | Skip video download, use existing files            |
+| `--skip-frames`      | flag | False   | Skip frame extraction, use existing frames         |
+| `--skip-inference`   | flag | False   | Skip inference (detection, tracking, segmentation) |
+| `--skip-annotations` | flag | False   | Skip annotation (COCO JSON) generation             |
+| `--skip-report`      | flag | False   | Skip consolidated report generation                |
 
 ### Logging Options
 
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| `--verbose`, `-v` | flag | False | Verbose logging output |
-| `--debug` | flag | False | Enable debug-level logging |
-| `--quiet`, `-q` | flag | False | Suppress most output |
+| Argument          | Type | Default | Description                  |
+| ----------------- | ---- | ------- | ---------------------------- |
+| `--verbose`, `-v` | flag | False   | Verbose logging output       |
+| `--debug`         | flag | False   | Enable debug-level logging   |
+| `--quiet`, `-q`   | flag | False   | Suppress most logging output |
 
 ### Example Commands
 
@@ -158,17 +145,17 @@ python main.py --urls <path_to_urls> [OPTIONS]
 # Basic usage with default settings
 python main.py --urls urls.txt
 
-# High-quality processing with large models
+# Run with custom YOLO + SAM models
 python main.py --urls urls.txt --yolo-model yolov8x.pt --sam-model sam2.1_l.pt
 
-# Fast processing without segmentation
-python main.py --urls urls.txt --no-sam --yolo-model yolov8n.pt
+# Fast processing without segmentation and interpolation
+python main.py --urls urls.txt --no-sam --no-interpolation
 
-# Custom output directory with verbose logging
+# Save results to custom directory with verbose logs
 python main.py --urls urls.txt --output-dir /path/to/output --verbose
 
-# Process existing videos without downloading
-python main.py --urls urls.txt --skip-download --confidence 0.7
+# Skip downloading and reuse existing frames for inference
+python main.py --urls urls.txt --skip-download --skip-frames
 ```
 
 ## Configuration
@@ -245,12 +232,21 @@ https://youtube.com/watch?v=VIDEO_ID
 3. **Segmentation**: SAM generates precise masks (if enabled)
 4. **Polygon Processing**: Simplifies and optimizes segmentation masks
 5. **Static Analysis**: Identifies non-moving objects
+6. **Track and Class smoother**: Smooth tracks, fix classifications
 
 **Advanced Features**:
 - **Batch SAM Processing**: Optimized segmentation for multiple objects
 - **Polygon Simplification**: Douglas-Peucker algorithm for efficient masks
 - **Memory Management**: Automatic cleanup for long video processing
 - **Dynamic Tracking**: Configurable tracker types and parameters
+
+#### 5. `track_smoother.py` - Track smoothing, classification fixing, false positive reduction
+**Purpose**: Post-processing tracks to improve detection quality and reduce noise
+- Track Filtering: removal of tracks that are too short (likely false positives)
+- Class Smoothing: elimination of class “flickering,” determination of the dominant class for the entire track
+- Gap Filling: interpolation of bbox between adjacent frames to restore missed detections
+- Confidence-Based Filtering: use of confidence thresholds for interpolation and class selection decisions
+- Annotation Rebuild: generation of updated annotations taking into account smoothed tracks
 
 #### 6. `annotations.py` - COCO Format Generation
 **Purpose**: Convert detections to standard COCO format
