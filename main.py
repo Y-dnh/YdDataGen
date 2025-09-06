@@ -280,11 +280,11 @@ if __name__ == "__main__":
     sys.argv = [
         "main.py",
         "--urls", "urls.txt",
-        "--yolo-model", "yolo8n_pt_512_coco_skiped_crowd.pt",
-        "--no-sam",
-        # "--sam-model", "mobile_sam.pt",
+        "--yolo-model", "yolov11l_ajax.pt",
+        # "--no-sam",
+        "--sam-model", "mobile_sam.pt",
         "--tracker", "botsort.yaml",
-        # '--skip-download',
+        '--skip-download',
         # "--skip-frames",
         # "--skip-inference",
     ]

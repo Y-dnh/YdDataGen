@@ -154,7 +154,6 @@ class ConsolidatedReportGenerator:
         • Max Gap Fill: {CONFIG.max_gap_frames} frames<br/>
         • Min Confidence for Gap Fill: {CONFIG.min_confidence_for_gap_fill}<br/>
         • Class Smoothing Window: {CONFIG.class_smoothing_window} frames<br/>
-        • Class Confidence Threshold: {CONFIG.class_confidence_threshold}<br/>
         • Gap Interpolation: {CONFIG.interpolate_missing_detections}<br/><br/>
             """
         else:

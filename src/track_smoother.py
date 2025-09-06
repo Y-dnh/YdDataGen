@@ -125,36 +125,22 @@ class TrackSmoother:
 
         return track_db
 
+
     # Updated function to replace the one in track_smoother.py
     def _find_dominant_class(self, class_history: List[Tuple[int, int, float]]) -> Optional[int]:
-        """Find most reliable class using simple weighted voting + frequency filtering."""
+        """Find most reliable class using simple weighted voting."""
         if not class_history:
             return None
 
         # Weighted voting: each detection votes with weight = confidence
         class_weights = defaultdict(float)
-        class_counts = defaultdict(int)
 
         for frame_id, class_id, confidence in class_history:
             class_weights[class_id] += confidence
-            class_counts[class_id] += 1
-
-        # Filter out rare classes (likely false positives)
-        total_detections = len(class_history)
-        min_detections = max(2, int(total_detections * self.class_confidence_threshold))  # At least 20% or 2 detections
-
-        valid_classes = {
-            class_id: weight
-            for class_id, weight in class_weights.items()
-            if class_counts[class_id] >= min_detections
-        }
-
-        # Fallback to most frequent if all filtered out
-        if not valid_classes:
-            return max(class_counts.keys(), key=class_counts.get)
 
         # Return class with the highest weighted vote
-        return max(valid_classes.keys(), key=valid_classes.get)
+        return max(class_weights.keys(), key=class_weights.get)
+
 
     def _fill_track_gaps(self, track_db: Dict[int, Dict]) -> Dict[int, Dict]:
         """Fill gaps in tracks by interpolating missing frames."""
