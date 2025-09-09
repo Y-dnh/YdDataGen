@@ -84,8 +84,6 @@ def update_config_from_args(args: argparse.Namespace):
         CONFIG.static_car_enabled = False
     if args.no_smoothing:
         CONFIG.track_smoothing_enabled = False
-    if args.no_interpolation:
-        CONFIG.interpolate_missing_detections = False
 
     # Set logging level
     if args.debug:
@@ -280,12 +278,12 @@ if __name__ == "__main__":
     sys.argv = [
         "main.py",
         "--urls", "urls.txt",
-        "--yolo-model", "yolov11l_ajax.pt",
-        # "--no-sam",
-        "--sam-model", "mobile_sam.pt",
+        "--yolo-model", "yolo8n_pt_512_coco_skiped_crowd.pt",
+        "--no-sam",
+        # "--sam-model", "mobile_sam.pt",
         "--tracker", "botsort.yaml",
         '--skip-download',
-        # "--skip-frames",
+        "--skip-frames",
         # "--skip-inference",
     ]
     sys.exit(main())

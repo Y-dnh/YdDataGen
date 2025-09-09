@@ -153,8 +153,6 @@ class ConsolidatedReportGenerator:
         • Minimum Track Length: {CONFIG.min_track_length} frames<br/>
         • Max Gap Fill: {CONFIG.max_gap_frames} frames<br/>
         • Min Confidence for Gap Fill: {CONFIG.min_confidence_for_gap_fill}<br/>
-        • Class Smoothing Window: {CONFIG.class_smoothing_window} frames<br/>
-        • Gap Interpolation: {CONFIG.interpolate_missing_detections}<br/><br/>
             """
         else:
             config_text += "<br/>"

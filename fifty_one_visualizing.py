@@ -307,8 +307,8 @@ def main():
     Main function to load COCO dataset and launch FiftyOne app.
     """
     # Configuration
-    DATA_PATH = "C:/YtDataGen/dataset/data"
-    LABELS_PATH = "C:/YtDataGen/dataset/annotations_per_videos/v4vO49ekCmg_annotations.json"
+    DATA_PATH = "dataset/data"
+    LABELS_PATH = "annotations_per_videos/v4vO49ekCmg_annotations.json"
     DATASET_NAME = "merged_dataset_with_tracks"
     PORT = 5151
 

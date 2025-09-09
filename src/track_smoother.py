@@ -15,9 +15,6 @@ class TrackSmoother:
         self.min_track_length = CONFIG.min_track_length
         self.max_gap_frames = CONFIG.max_gap_frames
         self.min_confidence_for_gap_fill = CONFIG.min_confidence_for_gap_fill
-        self.class_smoothing_window = CONFIG.class_smoothing_window
-        self.class_confidence_threshold = CONFIG.class_confidence_threshold
-        self.interpolate_missing = CONFIG.interpolate_missing_detections
 
     def smooth_video_tracks(self, annotations: List[Dict]) -> List[Dict]:
         """Main entry point for track smoothing."""
@@ -35,9 +32,7 @@ class TrackSmoother:
         # Smooth classifications for each track
         track_db = self._smooth_classifications(track_db)
 
-        # Fill gaps in tracks
-        if self.interpolate_missing:
-            track_db = self._fill_track_gaps(track_db)
+        track_db = self._fill_track_gaps(track_db)
 
         # Rebuild annotations from smoothed tracks
         smoothed_annotations = self._rebuild_annotations(annotations, track_db)
