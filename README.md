@@ -35,11 +35,11 @@ Below are clickable previews that link to YouTube videos
 
 | Only detection on 8k video | Detection with segmentation with people walking | Football match |
 |-----------------------------|-----------------------------------------------|----------------|
-| [![8k detection](https://img.youtube.com/vi/tDtCKGIMQ7w/maxresdefault.jpg)](https://youtu.be/tDtCKGIMQ7w) | [![People walking](https://img.youtube.com/vi/r00vX-lx7Ok/maxresdefault.jpg)](https://youtu.be/iY_VSz0VP_E) | [![Football match](https://img.youtube.com/vi/ahzNxjBc0zQ/maxresdefault.jpg)](https://youtu.be/m11oYyfsEas) |
+| [![8k detection](https://img.youtube.com/vi/tDtCKGIMQ7w/hqdefault.jpg)](https://youtu.be/tDtCKGIMQ7w) | [![People walking](https://img.youtube.com/vi/iY_VSz0VP_E/hqdefault.jpg)](https://www.youtube.com/watch?v=iY_VSz0VP_E) | [![Football match](https://img.youtube.com/vi/m11oYyfsEas/hqdefault.jpg)](https://www.youtube.com/watch?v=m11oYyfsEas) |
 
 | Detection with segmentation of road traffic | Detection with segmentation on road traffic | Light tracking of cars and people |
 |---------------------------------------------|---------------------------------------------|----------------------------------|
-| [![Road traffic detection](https://img.youtube.com/vi/j1OVdiglhug/maxresdefault.jpg)](https://youtu.be/BdRI90mrDNA) | [![Road traffic segmentation](https://img.youtube.com/vi/pQPVOvtUTik/maxresdefault.jpg)](https://youtu.be/pQPVOvtUTik) | [![Light tracking](https://img.youtube.com/vi/ynd2h_vO480/maxresdefault.jpg)](https://youtu.be/wiBmTBmQ5qw) |
+| [![Road traffic detection](https://img.youtube.com/vi/BdRI90mrDNA/hqdefault.jpg)](https://www.youtube.com/watch?v=BdRI90mrDNA) | [![Road traffic segmentation](https://img.youtube.com/vi/pQPVOvtUTik/hqdefault.jpg)](https://youtu.be/pQPVOvtUTik) | [![Light tracking](https://img.youtube.com/vi/wiBmTBmQ5qw/hqdefault.jpg)](https://www.youtube.com/watch?v=wiBmTBmQ5qw) |
 
 ## Installation
 

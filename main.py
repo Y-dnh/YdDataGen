@@ -169,7 +169,7 @@ def main():
         else:
             # Use existing videos if download is skipped
             logger.info("Step 1/5: Skipped download, using existing videos.")
-            existing_videos = list(CONFIG.paths.videos_dir.glob("*.mp4"))
+            existing_videos = list(CONFIG.paths.videos_dir.glob("*"))
             if not existing_videos:
                 logger.error(f"No videos found in {CONFIG.paths.videos_dir} to process.")
                 return 1
@@ -274,16 +274,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # Development/testing configuration - remove in production
-    sys.argv = [
-        "main.py",
-        "--urls", "urls.txt",
-        "--yolo-model", "yolo8n_pt_512_coco_skiped_crowd.pt",
-        "--no-sam",
-        # "--sam-model", "mobile_sam.pt",
-        "--tracker", "botsort.yaml",
-        '--skip-download',
-        "--skip-frames",
-        # "--skip-inference",
-    ]
     sys.exit(main())

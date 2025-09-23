@@ -45,8 +45,8 @@ class Config:
         # Custom classes mapping
         self.custom_classes = {
             0: "person",
-            2: "pet",
-            1: "car",
+            1: "pet",
+            2: "car",
         }
 
         # Logging settings
@@ -84,22 +84,22 @@ class Config:
 
         # Track smoothing and filtering parameters
         self.track_smoothing_enabled = True
-        self.min_track_length = 10  # minimum frames to keep a track
-        self.max_gap_frames = 30  # max frames to interpolate missing detections
+        self.min_track_length = 30  # minimum frames to keep a track
+        self.max_gap_frames = 120  # max frames to interpolate missing detections
         self.min_confidence_for_gap_fill = 0.4  # min confidence to fill gaps
 
         # YOLO Detection settings
         self.yolo_model_path = "yolov8n.pt"
-        self.yolo_confidence = 0.35
+        self.yolo_confidence = 0.5
         self.yolo_iou = 0.5
         self.yolo_rect = False
-        self.yolo_half = True
+        self.yolo_half = False
         self.yolo_max_det = 300
         self.yolo_classes = None  # None for all classes, or list like [0, 2] for specific
         self.yolo_agnostic_nms = False
         self.yolo_augment = False  # Disabled due to CUDA error
         self.stream_buffer = False
-        self.yolo_imgsz = 320
+        self.yolo_imgsz = 640
 
         # SAM Segmentation settings
         self.sam_model_path = "sam2.1_t.pt"
@@ -107,7 +107,7 @@ class Config:
         self.sam_confidence = 0.5
         self.sam_iou = 0.5
         self.sam_retina_masks = True
-        self.sam_half = True
+        self.sam_half = False
         self.sam_imgsz = 640
 
         # Segmentation polygon settings
